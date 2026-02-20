@@ -36,8 +36,10 @@ dependencies {
 	runtimeOnly("org.postgresql:postgresql")
 	annotationProcessor("org.projectlombok:lombok")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
-	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.3")
+	testRuntimeOnly("com.h2database:h2")
+	runtimeOnly("com.h2database:h2")
 }
 
 tasks.withType<Test> {
