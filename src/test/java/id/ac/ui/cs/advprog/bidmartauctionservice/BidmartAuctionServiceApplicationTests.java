@@ -8,6 +8,11 @@ class BidmartAuctionServiceApplicationTests {
 
 	@Test
 	void contextLoads() {
+
 	}
 
+	@Test
+	void testMainMethod() {
+		BidmartAuctionServiceApplication.main(new String[] {});
+	}
 }
