@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(AuctionController.class)
 class AuctionControllerTest {
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -20,15 +21,11 @@ class AuctionControllerTest {
     private AuctionService auctionService;
 
     @Test
-    void testPostBidEndpoint() throws Exception {
-        Auction auction = new Auction();
-        auction.setId(1L);
-        auction.setCurrentHighestBid(200.0);
-
-        when(auctionService.placeBid(1L, 200.0)).thenReturn(auction);
+    void testPlaceBidEndpoint() throws Exception {
+        when(auctionService.placeBid(1L, 250.0)).thenReturn(new Auction());
 
         mockMvc.perform(post("/api/auctions/1/bid")
-                        .param("amount", "200.0"))
+                        .param("amount", "250.0"))
                 .andExpect(status().isOk());
     }
 }
