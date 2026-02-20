@@ -10,25 +10,19 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
 class AuctionRepositoryTest {
+
     @Autowired
     private AuctionRepository auctionRepository;
 
     @Test
-    void testFindByIdWithLock() {
-        Auction auction = new Auction();
-        auction.setItemId("ITM-01");
-        auction.setItemName("Test Item");
-        auction.setCurrentHighestBid(100.0);
-        auction.setMinIncrement(10.0);
-        auction.setReservePrice(500.0);
-        auction.setStartTime(LocalDateTime.now());
-        auction.setEndTime(LocalDateTime.now().plusHours(1));
-        auction.setStatus("ACTIVE");
+    void testSaveAndFindByIdWithLock() {
+        Auction auction = new Auction(null, "ITM-X", "Monitor", 200.0, 20.0, 1000.0,
+                LocalDateTime.now(), LocalDateTime.now().plusHours(2), "ACTIVE");
 
         Auction saved = auctionRepository.save(auction);
         Optional<Auction> found = auctionRepository.findByIdWithLock(saved.getId());
 
         assertTrue(found.isPresent());
-        assertEquals("Test Item", found.get().getItemName());
+        assertEquals("Monitor", found.get().getItemName());
     }
 }
