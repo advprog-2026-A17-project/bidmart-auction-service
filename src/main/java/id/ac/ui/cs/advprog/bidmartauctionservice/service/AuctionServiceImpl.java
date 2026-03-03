@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -65,5 +66,11 @@ public class AuctionServiceImpl implements AuctionService {
                 .build();
 
         return bidRepository.save(bid);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Auction> getAllAuctions() {
+        return auctionRepository.findAll();
     }
 }
