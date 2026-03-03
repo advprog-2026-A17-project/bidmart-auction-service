@@ -23,6 +23,11 @@ public class AuctionController {
 
     private final AuctionService auctionService;
 
+    @GetMapping
+    public ResponseEntity<List<Auction>> getAllAuctions() {
+        return ResponseEntity.ok(auctionService.getAllAuctions());
+    }
+
     @PostMapping("/{auctionId}/bids")
     public ResponseEntity<BidResponseDTO> placeBid(
             @PathVariable UUID auctionId,
