@@ -3,6 +3,8 @@ package id.ac.ui.cs.advprog.bidmartauctionservice.model.entity;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -50,9 +52,11 @@ public class Auction {
     @Column(name = "end_time", nullable = false)
     private Instant endTime;
 
+    @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 }
