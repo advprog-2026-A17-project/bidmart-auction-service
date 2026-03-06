@@ -128,7 +128,12 @@
         const errorToast = document.getElementById('error-toast');
 
         try {
+<<<<<<< Updated upstream
             const response = await fetch('http://localhost:8080/api/v1/auctions');
+=======
+            // Menggunakan relative path
+            const response = await fetch('/api/v1/auctions');
+>>>>>>> Stashed changes
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
             const auctions = await response.json();
@@ -164,7 +169,11 @@
             }
         } catch (error) {
             console.error('Fetch execution failed:', error);
+<<<<<<< Updated upstream
             errorToast.textContent = 'Failed to connect to backend. Ensure Spring Boot is running.';
+=======
+            errorToast.textContent = 'Failed to connect to backend. Open DevTools (F12) -> Network tab to see the exact error.';
+>>>>>>> Stashed changes
             errorToast.style.display = 'block';
         }
     }
@@ -180,7 +189,12 @@
         };
 
         try {
+<<<<<<< Updated upstream
             const response = await fetch(`http://localhost:8080/api/v1/auctions/${auctionId}/bids`, {
+=======
+            // Menggunakan relative path
+            const response = await fetch(`/api/v1/auctions/${auctionId}/bids`, {
+>>>>>>> Stashed changes
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
