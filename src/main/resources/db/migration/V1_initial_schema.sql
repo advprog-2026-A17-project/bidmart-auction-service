@@ -1,19 +1,22 @@
 CREATE TABLE auctions (
-                          id BIGSERIAL PRIMARY KEY,
-                          item_id VARCHAR(255) NOT NULL,
-                          item_name VARCHAR(255) NOT NULL,
-                          current_highest_bid DOUBLE PRECISION DEFAULT 0.0,
-                          min_increment DOUBLE PRECISION NOT NULL,
-                          reserve_price DOUBLE PRECISION NOT NULL,
-                          start_time TIMESTAMP NOT NULL,
-                          end_time TIMESTAMP NOT NULL,
-                          status VARCHAR(50) NOT NULL -- DRAFT, ACTIVE, EXTENDED, CLOSED
+    id UUID PRIMARY KEY,
+    listing_id UUID NOT NULL,
+    seller_id UUID NOT NULL,
+    starting_price NUMERIC(19, 4) NOT NULL,
+    reserve_price NUMERIC(19, 4) NOT NULL,
+    current_highest_bid NUMERIC(19, 4),
+    minimum_increment NUMERIC(19, 4) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE TABLE bids (
-                      id BIGSERIAL PRIMARY KEY,
-                      auction_id BIGINT REFERENCES auctions(id),
-                      user_id VARCHAR(255) NOT NULL,
-                      amount DOUBLE PRECISION NOT NULL,
-                      bid_time TIMESTAMP NOT NULL
+    id UUID PRIMARY KEY,
+    auction_id UUID NOT NULL REFERENCES auctions(id),
+    bidder_id UUID NOT NULL,
+    bid_amount NUMERIC(19, 4) NOT NULL,
+    bid_time TIMESTAMP WITH TIME ZONE NOT NULL
 );
