@@ -1,18 +1,25 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.controller;
 
-import id.ac.ui.cs.advprog.bidmartauctionservice.model.Auction;
-import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.AuctionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -25,44 +32,70 @@ class AuctionControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @MockitoBean
     private AuctionService auctionService;
 
-    @MockitoBean
-    private AuctionRepository auctionRepository;
-
     @Test
     void testGetAllAuctions() throws Exception {
-        Auction auction = new Auction();
-        auction.setItemName("Test Item");
-        auction.setCurrentHighestBid(100.0);
-        when(auctionRepository.findAll()).thenReturn(Arrays.asList(auction));
+        Auction auction = Auction.builder()
+                .id(UUID.randomUUID())
+                .listingId(UUID.randomUUID())
+                .currentHighestBid(new BigDecimal("100.00"))
+                .status(AuctionStatus.ACTIVE)
+                .build();
 
-        mockMvc.perform(get("/api/auctions"))
+        when(auctionService.getAllAuctions()).thenReturn(Arrays.asList(auction));
+
+        mockMvc.perform(get("/api/v1/auctions")
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].itemName").value("Test Item"))
-                .andExpect(jsonPath("$[0].currentHighestBid").value(100.0));
+                .andExpect(jsonPath("$[0].currentHighestBid").value(100.0))
+                .andExpect(jsonPath("$[0].status").value("ACTIVE"));
     }
 
     @Test
-    void testPlaceBidEndpoint() throws Exception {
-        Auction auction = new Auction();
-        auction.setCurrentHighestBid(150.0);
-        when(auctionService.placeBid(anyLong(), anyDouble())).thenReturn(auction);
+    void testPlaceBidEndpoint_Success() throws Exception {
+        UUID auctionId = UUID.randomUUID();
+        UUID bidderId = UUID.randomUUID();
 
-        mockMvc.perform(post("/api/auctions/1/bid")
-                        .param("amount", "150.0"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.currentHighestBid").value(150.0));
+        BidRequestDTO requestDTO = BidRequestDTO.builder()
+                .bidderId(bidderId)
+                .bidAmount(new BigDecimal("150.00"))
+                .build();
+
+        Auction auction = Auction.builder().id(auctionId).build();
+        Bid bid = Bid.builder()
+                .id(UUID.randomUUID())
+                .auction(auction)
+                .bidderId(bidderId)
+                .bidAmount(new BigDecimal("150.00"))
+                .bidTime(Instant.now())
+                .build();
+
+        when(auctionService.placeBid(eq(auctionId), any(BidRequestDTO.class))).thenReturn(bid);
+
+        mockMvc.perform(post("/api/v1/auctions/{auctionId}/bids", auctionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestDTO)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.bidAmount").value(150.0))
+                .andExpect(jsonPath("$.bidderId").value(bidderId.toString()));
     }
 
     @Test
-    void testPlaceBid_BadRequest() throws Exception {
-        when(auctionService.placeBid(anyLong(), anyDouble()))
-                .thenThrow(new IllegalArgumentException("Bid too low"));
+    void testPlaceBidEndpoint_ValidationFailed() throws Exception {
+        UUID auctionId = UUID.randomUUID();
 
-        mockMvc.perform(post("/api/auctions/1/bid")
-                        .param("amount", "10.0"))
+        BidRequestDTO requestDTO = BidRequestDTO.builder()
+                .bidderId(UUID.randomUUID())
+                .build();
+
+        mockMvc.perform(post("/api/v1/auctions/{auctionId}/bids", auctionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isBadRequest());
     }
 }
