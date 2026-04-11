@@ -45,4 +45,21 @@ public class AuctionController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(responseDTO);
     }
+
+    @GetMapping("/{auctionId}/bids")
+    public ResponseEntity<List<BidResponseDTO>> getBidHistory(@PathVariable UUID auctionId) {
+        List<Bid> bids = auctionService.getBidHistoryByAuctionId(auctionId);
+
+        List<BidResponseDTO> responseDTOs = bids.stream()
+                .map(bid -> BidResponseDTO.builder()
+                        .id(bid.getId())
+                        .auctionId(bid.getAuction().getId())
+                        .bidderId(bid.getBidderId())
+                        .bidAmount(bid.getBidAmount())
+                        .bidTime(bid.getBidTime())
+                        .build())
+                .toList();
+
+        return ResponseEntity.ok(responseDTOs);
+    }
 }
