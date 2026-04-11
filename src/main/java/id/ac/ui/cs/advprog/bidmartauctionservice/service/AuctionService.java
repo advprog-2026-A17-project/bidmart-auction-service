@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface AuctionService {
     Bid placeBid(UUID auctionId, BidRequestDTO requestDTO);
     List<Auction> getAllAuctions();
+    List<Bid> getBidHistoryByAuctionId(UUID auctionId);
 }

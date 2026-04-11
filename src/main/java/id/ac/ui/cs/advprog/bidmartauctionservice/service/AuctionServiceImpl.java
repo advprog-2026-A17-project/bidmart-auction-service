@@ -73,4 +73,10 @@ public class AuctionServiceImpl implements AuctionService {
     public List<Auction> getAllAuctions() {
         return auctionRepository.findAll();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Bid> getBidHistoryByAuctionId(UUID auctionId) {
+        return bidRepository.findByAuctionIdOrderByBidTimeDesc(auctionId);
+    }
 }
