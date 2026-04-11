@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.bidmartauctionservice.service;
 
 import id.ac.ui.cs.advprog.bidmartauctionservice.client.WalletServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
@@ -104,5 +105,22 @@ public class AuctionServiceImpl implements AuctionService {
     @Transactional(readOnly = true)
     public List<Bid> getBidHistoryByAuctionId(UUID auctionId) {
         return bidRepository.findByAuctionIdOrderByBidTimeDesc(auctionId);
+    }
+
+    @Override
+    @Transactional
+    public Auction createAuction(CreateAuctionRequest requestDTO) {
+        Auction auction = Auction.builder()
+                .listingId(requestDTO.getListingId())
+                .sellerId(requestDTO.getSellerId())
+                .startingPrice(requestDTO.getStartingPrice())
+                .minimumIncrement(requestDTO.getMinimumIncrement())
+                .reservePrice(requestDTO.getReservePrice())
+                .startTime(requestDTO.getStartTime())
+                .endTime(requestDTO.getEndTime())
+                .status(AuctionStatus.ACTIVE)
+                .build();
+
+        return auctionRepository.save(auction);
     }
 }

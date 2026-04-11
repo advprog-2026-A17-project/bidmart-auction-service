@@ -136,7 +136,7 @@ class AuctionControllerTest {
                 .andExpect(jsonPath("$[0].bidAmount").value(200.0))
                 .andExpect(jsonPath("$[1].bidAmount").value(150.0));
     }
-}
+
     @Test
     void testCreateAuction_Success() throws Exception {
         UUID auctionId = UUID.randomUUID();
@@ -174,3 +174,4 @@ class AuctionControllerTest {
                 .andExpect(jsonPath("$.listingId").value(listingId.toString()))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
+}

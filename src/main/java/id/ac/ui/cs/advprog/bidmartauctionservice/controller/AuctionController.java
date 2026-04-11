@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.bidmartauctionservice.controller;
 
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidResponseDTO;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
@@ -26,6 +27,12 @@ public class AuctionController {
     @GetMapping
     public ResponseEntity<List<Auction>> getAllAuctions() {
         return ResponseEntity.ok(auctionService.getAllAuctions());
+    }
+
+    @PostMapping
+    public ResponseEntity<Auction> createAuction(@Valid @RequestBody CreateAuctionRequest requestDTO) {
+        Auction auction = auctionService.createAuction(requestDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body(auction);
     }
 
     @PostMapping("/{auctionId}/bids")
