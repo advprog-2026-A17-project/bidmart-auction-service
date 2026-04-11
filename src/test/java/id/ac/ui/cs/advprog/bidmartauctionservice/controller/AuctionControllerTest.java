@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.bidmartauctionservice.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
@@ -136,3 +137,40 @@ class AuctionControllerTest {
                 .andExpect(jsonPath("$[1].bidAmount").value(150.0));
     }
 }
+    @Test
+    void testCreateAuction_Success() throws Exception {
+        UUID auctionId = UUID.randomUUID();
+        UUID listingId = UUID.randomUUID();
+        UUID sellerId = UUID.randomUUID();
+
+        CreateAuctionRequest requestDTO = CreateAuctionRequest.builder()
+                .listingId(listingId)
+                .sellerId(sellerId)
+                .startingPrice(new BigDecimal("100.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("500.00"))
+                .startTime(Instant.now())
+                .endTime(Instant.now().plusSeconds(3600))
+                .build();
+
+        Auction auction = Auction.builder()
+                .id(auctionId)
+                .listingId(listingId)
+                .sellerId(sellerId)
+                .startingPrice(new BigDecimal("100.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("500.00"))
+                .startTime(Instant.now())
+                .endTime(Instant.now().plusSeconds(3600))
+                .status(AuctionStatus.ACTIVE)
+                .build();
+
+        when(auctionService.createAuction(any(CreateAuctionRequest.class))).thenReturn(auction);
+
+        mockMvc.perform(post("/api/v1/auctions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestDTO)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.listingId").value(listingId.toString()))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
