@@ -15,7 +15,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -97,5 +99,40 @@ class AuctionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testGetBidHistory_Success() throws Exception {
+        UUID auctionId = UUID.randomUUID();
+        UUID bidderId1 = UUID.randomUUID();
+        UUID bidderId2 = UUID.randomUUID();
+
+        Instant now = Instant.now();
+        Auction auction = Auction.builder().id(auctionId).build();
+
+        List<Bid> bids = new ArrayList<>();
+        bids.add(Bid.builder()
+                .id(UUID.randomUUID())
+                .auction(auction)
+                .bidderId(bidderId2)
+                .bidAmount(new BigDecimal("200.00"))
+                .bidTime(now)
+                .build());
+        bids.add(Bid.builder()
+                .id(UUID.randomUUID())
+                .auction(auction)
+                .bidderId(bidderId1)
+                .bidAmount(new BigDecimal("150.00"))
+                .bidTime(now.minusSeconds(60))
+                .build());
+
+        when(auctionService.getBidHistoryByAuctionId(auctionId)).thenReturn(bids);
+
+        mockMvc.perform(get("/api/v1/auctions/{auctionId}/bids", auctionId)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].bidAmount").value(200.0))
+                .andExpect(jsonPath("$[1].bidAmount").value(150.0));
     }
 }
