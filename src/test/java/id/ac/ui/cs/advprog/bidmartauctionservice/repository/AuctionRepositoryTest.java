@@ -1,12 +1,18 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.repository;
 
-import id.ac.ui.cs.advprog.bidmartauctionservice.model.Auction;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import java.time.LocalDateTime;
+
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
-import static org.junit.jupiter.api.Assertions.*;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
 class AuctionRepositoryTest {
@@ -15,14 +21,24 @@ class AuctionRepositoryTest {
     private AuctionRepository auctionRepository;
 
     @Test
-    void testSaveAndFindByIdWithLock() {
-        Auction auction = new Auction(null, "ITM-X", "Monitor", 200.0, 20.0, 1000.0,
-                LocalDateTime.now(), LocalDateTime.now().plusHours(2), "ACTIVE");
+    void testSaveAndFindByIdWithPessimisticWriteLock() {
+        Auction auction = Auction.builder()
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("200.00"))
+                .minimumIncrement(new BigDecimal("20.00"))
+                .reservePrice(new BigDecimal("1000.00"))
+                .startTime(Instant.now())
+                .endTime(Instant.now().plusSeconds(3600))
+                .status(AuctionStatus.ACTIVE)
+                .build();
 
         Auction saved = auctionRepository.save(auction);
-        Optional<Auction> found = auctionRepository.findByIdWithLock(saved.getId());
+
+        Optional<Auction> found = auctionRepository.findByIdWithPessimisticWriteLock(saved.getId());
 
         assertTrue(found.isPresent());
-        assertEquals("Monitor", found.get().getItemName());
+        assertEquals(AuctionStatus.ACTIVE, found.get().getStatus());
+        assertEquals(new BigDecimal("200.00"), found.get().getStartingPrice());
     }
 }
