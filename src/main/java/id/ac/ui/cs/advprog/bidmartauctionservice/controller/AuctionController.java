@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.bidmartauctionservice.controller;
 
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidResponseDTO;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
@@ -28,6 +29,12 @@ public class AuctionController {
         return ResponseEntity.ok(auctionService.getAllAuctions());
     }
 
+    @PostMapping
+    public ResponseEntity<Auction> createAuction(@Valid @RequestBody CreateAuctionRequest requestDTO) {
+        Auction auction = auctionService.createAuction(requestDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body(auction);
+    }
+
     @PostMapping("/{auctionId}/bids")
     public ResponseEntity<BidResponseDTO> placeBid(
             @PathVariable UUID auctionId,
@@ -44,5 +51,22 @@ public class AuctionController {
                 .build();
 
         return ResponseEntity.status(HttpStatus.CREATED).body(responseDTO);
+    }
+
+    @GetMapping("/{auctionId}/bids")
+    public ResponseEntity<List<BidResponseDTO>> getBidHistory(@PathVariable UUID auctionId) {
+        List<Bid> bids = auctionService.getBidHistoryByAuctionId(auctionId);
+
+        List<BidResponseDTO> responseDTOs = bids.stream()
+                .map(bid -> BidResponseDTO.builder()
+                        .id(bid.getId())
+                        .auctionId(bid.getAuction().getId())
+                        .bidderId(bid.getBidderId())
+                        .bidAmount(bid.getBidAmount())
+                        .bidTime(bid.getBidTime())
+                        .build())
+                .toList();
+
+        return ResponseEntity.ok(responseDTOs);
     }
 }
