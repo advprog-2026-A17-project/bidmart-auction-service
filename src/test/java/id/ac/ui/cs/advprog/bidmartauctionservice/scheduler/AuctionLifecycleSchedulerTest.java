@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -18,6 +19,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,6 +28,9 @@ class AuctionLifecycleSchedulerTest {
 
     @Mock
     private AuctionRepository auctionRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private AuctionLifecycleScheduler scheduler;
@@ -74,6 +79,8 @@ class AuctionLifecycleSchedulerTest {
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(activeAuction));
 
+        doNothing().when(eventPublisher).publishEvent(any());
+
         scheduler.closeExpiredAuctions();
 
         assert activeAuction.getStatus() == AuctionStatus.WON;
@@ -86,6 +93,8 @@ class AuctionLifecycleSchedulerTest {
                 eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(extendedAuction));
+
+        doNothing().when(eventPublisher).publishEvent(any());
 
         scheduler.closeExpiredAuctions();
 
