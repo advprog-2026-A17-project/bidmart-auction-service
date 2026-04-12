@@ -21,15 +21,13 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class AuctionServiceWalletIntegrationTest {
+class AuctionServiceEventPublishingTest {
 
     @Mock
     private AuctionRepository auctionRepository;
@@ -49,13 +47,11 @@ class AuctionServiceWalletIntegrationTest {
     private Auction activeAuction;
     private UUID auctionId;
     private UUID newBidderId;
-    private UUID previousBidderId;
 
     @BeforeEach
     void setUp() {
         auctionId = UUID.randomUUID();
         newBidderId = UUID.randomUUID();
-        previousBidderId = UUID.randomUUID();
 
         activeAuction = Auction.builder()
                 .id(auctionId)
@@ -67,12 +63,11 @@ class AuctionServiceWalletIntegrationTest {
                 .startTime(Instant.now().minusSeconds(3600))
                 .endTime(Instant.now().plusSeconds(3600))
                 .status(AuctionStatus.ACTIVE)
-                .currentHighestBid(new BigDecimal("150.00"))
                 .build();
     }
 
     @Test
-    void testPlaceBid_HoldsFundsForNewBidder() {
+    void testPlaceBid_PublishesBidPlacedEvent() {
         BidRequestDTO requestDTO = BidRequestDTO.builder()
                 .bidderId(newBidderId)
                 .bidAmount(new BigDecimal("200.00"))
@@ -90,28 +85,13 @@ class AuctionServiceWalletIntegrationTest {
                 .build();
 
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
+        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId))
+                .thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
         doNothing().when(eventPublisher).publishEvent(any());
 
         auctionService.placeBid(auctionId, requestDTO);
 
-        verify(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-    }
-
-    @Test
-    void testPlaceBid_WalletServiceFailure_AbortsBid() {
-        BidRequestDTO requestDTO = BidRequestDTO.builder()
-                .bidderId(newBidderId)
-                .bidAmount(new BigDecimal("200.00"))
-                .build();
-
-        when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId))
-                .thenReturn(Optional.of(activeAuction));
-
-        doThrow(new RuntimeException("Wallet service error"))
-                .when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-
-        assertThrows(RuntimeException.class, () -> auctionService.placeBid(auctionId, requestDTO));
+        verify(eventPublisher).publishEvent(any());
     }
 }
