@@ -1,43 +1,48 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.controller;
 
-import id.ac.ui.cs.advprog.bidmartauctionservice.model.Auction;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidResponseDTO;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.AuctionService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/auctions")
-@CrossOrigin(origins = "*") // Krusial untuk mengizinkan request dari frontend (index.html)
+@RequestMapping("/api/v1/auctions")
+@RequiredArgsConstructor
 public class AuctionController {
 
     private final AuctionService auctionService;
-    private final AuctionRepository auctionRepository;
-
-    @Autowired
-    public AuctionController(AuctionService auctionService, AuctionRepository auctionRepository) {
-        this.auctionService = auctionService;
-        this.auctionRepository = auctionRepository;
-    }
 
     @GetMapping
     public ResponseEntity<List<Auction>> getAllAuctions() {
-        List<Auction> auctions = auctionRepository.findAll();
-        return ResponseEntity.ok(auctions);
+        return ResponseEntity.ok(auctionService.getAllAuctions());
     }
 
-    @PostMapping("/{id}/bid")
-    public ResponseEntity<?> placeBid(@PathVariable Long id, @RequestParam Double amount) {
-        try {
-            Auction updatedAuction = auctionService.placeBid(id, amount);
-            return ResponseEntity.ok(updatedAuction);
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(404).body(e.getMessage());
-        }
+    @PostMapping("/{auctionId}/bids")
+    public ResponseEntity<BidResponseDTO> placeBid(
+            @PathVariable UUID auctionId,
+            @Valid @RequestBody BidRequestDTO requestDTO) {
+
+        Bid bid = auctionService.placeBid(auctionId, requestDTO);
+
+        BidResponseDTO responseDTO = BidResponseDTO.builder()
+                .id(bid.getId())
+                .auctionId(bid.getAuction().getId())
+                .bidderId(bid.getBidderId())
+                .bidAmount(bid.getBidAmount())
+                .bidTime(bid.getBidTime())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(responseDTO);
     }
 }
