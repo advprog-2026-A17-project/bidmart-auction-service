@@ -16,7 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -44,7 +43,7 @@ class AuctionServiceEventPublishingTest {
     private CatalogueServiceClient catalogueServiceClient;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private OutboxEventService outboxEventService;
 
     @InjectMocks
     private AuctionServiceImpl auctionService;
@@ -72,7 +71,7 @@ class AuctionServiceEventPublishingTest {
     }
 
     @Test
-    void testPlaceBid_PublishesBidPlacedEvent() {
+    void testPlaceBid_EnqueuesBidPlacedOutboxEvent() {
         BidRequestDTO requestDTO = BidRequestDTO.builder()
                 .bidderId(newBidderId)
                 .bidAmount(new BigDecimal("200.00"))
@@ -98,10 +97,9 @@ class AuctionServiceEventPublishingTest {
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId))
                 .thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         auctionService.placeBid(auctionId, requestDTO);
 
-        verify(eventPublisher).publishEvent(any());
+        verify(outboxEventService).enqueueBidPlaced(savedBid.getId());
     }
 }
