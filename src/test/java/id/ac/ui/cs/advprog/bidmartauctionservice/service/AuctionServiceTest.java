@@ -267,6 +267,12 @@ class AuctionServiceTest {
                 .endTime(Instant.now().plusSeconds(1800))
                 .build();
 
+        when(catalogueServiceClient.getListing(request.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(request.getListingId().toString())
+                .sellerId(request.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
+
         assertThrows(IllegalArgumentException.class, () -> auctionService.createAuction(request));
         verify(auctionRepository, never()).save(any(Auction.class));
     }
@@ -282,6 +288,12 @@ class AuctionServiceTest {
                 .startTime(Instant.now().plusSeconds(300))
                 .endTime(Instant.now().plusSeconds(3600))
                 .build();
+
+        when(catalogueServiceClient.getListing(request.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(request.getListingId().toString())
+                .sellerId(request.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         assertThrows(IllegalArgumentException.class, () -> auctionService.createAuction(request));
         verify(auctionRepository, never()).save(any(Auction.class));
@@ -299,6 +311,11 @@ class AuctionServiceTest {
                 .endTime(Instant.now().plusSeconds(3600))
                 .build();
 
+        when(catalogueServiceClient.getListing(request.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(request.getListingId().toString())
+                .sellerId(request.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
         when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Auction saved = auctionService.createAuction(request);
@@ -319,6 +336,11 @@ class AuctionServiceTest {
                 .endTime(Instant.now().plusSeconds(3600))
                 .build();
 
+        when(catalogueServiceClient.getListing(request.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(request.getListingId().toString())
+                .sellerId(request.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
         when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Auction saved = auctionService.createAuction(request);
