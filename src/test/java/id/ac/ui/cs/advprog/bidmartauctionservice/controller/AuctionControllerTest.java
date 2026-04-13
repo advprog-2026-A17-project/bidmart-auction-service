@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -93,10 +95,55 @@ class AuctionControllerTest {
         UUID auctionId = UUID.randomUUID();
 
         BidRequestDTO requestDTO = BidRequestDTO.builder()
-                .bidderId(UUID.randomUUID())
                 .build();
 
         mockMvc.perform(post("/api/v1/auctions/{auctionId}/bids", auctionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestDTO)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testPlaceBidEndpoint_UsesIdentityHeaderWhenPayloadBidderMissing() throws Exception {
+        UUID auctionId = UUID.randomUUID();
+        UUID bidderId = UUID.randomUUID();
+
+        BidRequestDTO requestDTO = BidRequestDTO.builder()
+                .bidAmount(new BigDecimal("150.00"))
+                .build();
+
+        Auction auction = Auction.builder().id(auctionId).build();
+        Bid bid = Bid.builder()
+                .id(UUID.randomUUID())
+                .auction(auction)
+                .bidderId(bidderId)
+                .bidAmount(new BigDecimal("150.00"))
+                .bidTime(Instant.now())
+                .build();
+
+        when(auctionService.placeBid(eq(auctionId), any(BidRequestDTO.class))).thenReturn(bid);
+
+        mockMvc.perform(post("/api/v1/auctions/{auctionId}/bids", auctionId)
+                        .header("X-User-Id", bidderId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestDTO)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.bidderId").value(bidderId.toString()));
+
+        verify(auctionService).placeBid(eq(auctionId), argThat(dto -> bidderId.equals(dto.getBidderId())));
+    }
+
+    @Test
+    void testPlaceBidEndpoint_BidderIdentityMismatchReturnsBadRequest() throws Exception {
+        UUID auctionId = UUID.randomUUID();
+
+        BidRequestDTO requestDTO = BidRequestDTO.builder()
+                .bidderId(UUID.randomUUID())
+                .bidAmount(new BigDecimal("150.00"))
+                .build();
+
+        mockMvc.perform(post("/api/v1/auctions/{auctionId}/bids", auctionId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isBadRequest());
