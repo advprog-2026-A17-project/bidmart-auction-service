@@ -3,14 +3,13 @@ package id.ac.ui.cs.advprog.bidmartauctionservice.scheduler;
 import id.ac.ui.cs.advprog.bidmartauctionservice.client.WalletServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ConvertFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
-import id.ac.ui.cs.advprog.bidmartauctionservice.event.AuctionEndedEvent;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycleStateMachine;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.OutboxEventService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +26,7 @@ public class AuctionLifecycleScheduler {
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final WalletServiceClient walletServiceClient;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OutboxEventService outboxEventService;
 
     @Scheduled(fixedDelay = 30000) // Run every 30 seconds
     @Transactional
@@ -67,7 +66,7 @@ public class AuctionLifecycleScheduler {
                 });
             }
 
-            eventPublisher.publishEvent(new AuctionEndedEvent(this, auction, finalStatus));
+            outboxEventService.enqueueAuctionEnded(auction.getId(), finalStatus);
         }
     }
 

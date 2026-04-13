@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.scheduler;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import id.ac.ui.cs.advprog.bidmartauctionservice.event.AuctionEndedEvent;
 import id.ac.ui.cs.advprog.bidmartauctionservice.event.BidPlacedEvent;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
@@ -10,9 +11,9 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.OutboxEventType;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.OutboxEventRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -42,8 +43,18 @@ class OutboxEventPublisherSchedulerTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
-    @InjectMocks
     private OutboxEventPublisherScheduler scheduler;
+
+    @BeforeEach
+    void setUp() {
+        scheduler = new OutboxEventPublisherScheduler(
+                outboxEventRepository,
+                bidRepository,
+                auctionRepository,
+                eventPublisher,
+                new ObjectMapper()
+        );
+    }
 
     @Test
     void publishPendingEvents_PublishesBidPlacedEventAndMarksPublished() {

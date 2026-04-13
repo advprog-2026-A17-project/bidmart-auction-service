@@ -7,7 +7,6 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.catalogue.ListingSummaryResponse;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
-import id.ac.ui.cs.advprog.bidmartauctionservice.event.BidPlacedEvent;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
@@ -15,7 +14,6 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycl
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -33,7 +31,7 @@ public class AuctionServiceImpl implements AuctionService {
     private final BidRepository bidRepository;
     private final WalletServiceClient walletServiceClient;
     private final CatalogueServiceClient catalogueServiceClient;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OutboxEventService outboxEventService;
 
     @Override
     @Transactional
@@ -104,7 +102,7 @@ public class AuctionServiceImpl implements AuctionService {
                 .build();
 
         Bid savedBid = bidRepository.save(bid);
-        eventPublisher.publishEvent(new BidPlacedEvent(this, savedBid));
+        outboxEventService.enqueueBidPlaced(savedBid.getId());
         return savedBid;
     }
 
