@@ -1,8 +1,10 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.service;
 
+import id.ac.ui.cs.advprog.bidmartauctionservice.client.CatalogueServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.client.WalletServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.catalogue.ListingSummaryResponse;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
@@ -16,7 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -48,7 +49,10 @@ class AuctionServiceTest {
     private WalletServiceClient walletServiceClient;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private CatalogueServiceClient catalogueServiceClient;
+
+    @Mock
+    private OutboxEventService outboxEventService;
 
     @InjectMocks
     private AuctionServiceImpl auctionService;
@@ -81,6 +85,11 @@ class AuctionServiceTest {
     @Test
     void testPlaceBid_Success() {
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         Bid savedBid = Bid.builder()
                 .id(UUID.randomUUID())
@@ -93,13 +102,13 @@ class AuctionServiceTest {
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         Bid result = auctionService.placeBid(auctionId, validBidRequest);
 
         assertEquals(new BigDecimal("150.00"), result.getAuction().getCurrentHighestBid());
         verify(auctionRepository).save(activeAuction);
         verify(bidRepository).save(any(Bid.class));
+        verify(outboxEventService).enqueueBidPlaced(savedBid.getId());
     }
 
     @Test
@@ -113,6 +122,11 @@ class AuctionServiceTest {
     void testPlaceBid_InvalidStatus_ThrowsIllegalStateException() {
         activeAuction.setStatus(AuctionStatus.CLOSED);
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         assertThrows(IllegalStateException.class, () -> auctionService.placeBid(auctionId, validBidRequest));
     }
@@ -123,6 +137,11 @@ class AuctionServiceTest {
         validBidRequest.setBidAmount(new BigDecimal("155.00"));
 
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         assertThrows(IllegalArgumentException.class, () -> auctionService.placeBid(auctionId, validBidRequest));
     }
@@ -131,12 +150,16 @@ class AuctionServiceTest {
     void testPlaceBid_AntiSnipingExtension() {
         activeAuction.setEndTime(Instant.now().plusSeconds(30));
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         Bid savedBid = Bid.builder().auction(activeAuction).build();
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         auctionService.placeBid(auctionId, validBidRequest);
 
@@ -148,6 +171,11 @@ class AuctionServiceTest {
     @Test
     void testPlaceBid_WithWalletHold_Success() {
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         Bid savedBid = Bid.builder()
                 .id(UUID.randomUUID())
@@ -160,7 +188,6 @@ class AuctionServiceTest {
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         Bid result = auctionService.placeBid(auctionId, validBidRequest);
 
@@ -174,6 +201,11 @@ class AuctionServiceTest {
     @Test
     void testPlaceBid_WithWalletHoldFailure_ThrowsException() {
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
         doThrow(new RuntimeException("Wallet service unavailable"))
                 .when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
 
@@ -187,6 +219,11 @@ class AuctionServiceTest {
         activeAuction.setCurrentHighestBid(previousBidAmount);
 
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         Bid savedBid = Bid.builder()
                 .id(UUID.randomUUID())
@@ -205,7 +242,6 @@ class AuctionServiceTest {
 
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
         doNothing().when(walletServiceClient).releaseFunds(any(ReleaseFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         auctionService.placeBid(auctionId, validBidRequest);
 
@@ -227,6 +263,12 @@ class AuctionServiceTest {
                 .endTime(Instant.now().plusSeconds(1800))
                 .build();
 
+        when(catalogueServiceClient.getListing(request.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(request.getListingId().toString())
+                .sellerId(request.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
+
         assertThrows(IllegalArgumentException.class, () -> auctionService.createAuction(request));
         verify(auctionRepository, never()).save(any(Auction.class));
     }
@@ -242,6 +284,12 @@ class AuctionServiceTest {
                 .startTime(Instant.now().plusSeconds(300))
                 .endTime(Instant.now().plusSeconds(3600))
                 .build();
+
+        when(catalogueServiceClient.getListing(request.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(request.getListingId().toString())
+                .sellerId(request.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         assertThrows(IllegalArgumentException.class, () -> auctionService.createAuction(request));
         verify(auctionRepository, never()).save(any(Auction.class));
@@ -259,6 +307,11 @@ class AuctionServiceTest {
                 .endTime(Instant.now().plusSeconds(3600))
                 .build();
 
+        when(catalogueServiceClient.getListing(request.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(request.getListingId().toString())
+                .sellerId(request.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
         when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Auction saved = auctionService.createAuction(request);
@@ -279,11 +332,50 @@ class AuctionServiceTest {
                 .endTime(Instant.now().plusSeconds(3600))
                 .build();
 
+        when(catalogueServiceClient.getListing(request.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(request.getListingId().toString())
+                .sellerId(request.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
         when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Auction saved = auctionService.createAuction(request);
 
         assertEquals(AuctionStatus.ACTIVE, saved.getStatus());
         verify(auctionRepository).save(any(Auction.class));
+    }
+
+    @Test
+    void testPlaceBid_ListingNotActive_ThrowsIllegalStateException() {
+        when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("CANCELLED")
+                .build());
+
+        assertThrows(IllegalStateException.class, () -> auctionService.placeBid(auctionId, validBidRequest));
+    }
+
+    @Test
+    void testCreateAuction_SellerMismatch_ThrowsIllegalArgumentException() {
+        CreateAuctionRequest request = CreateAuctionRequest.builder()
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("200.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("250.00"))
+                .startTime(Instant.now().minusSeconds(10))
+                .endTime(Instant.now().plusSeconds(3600))
+                .build();
+
+        when(catalogueServiceClient.getListing(request.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(request.getListingId().toString())
+                .sellerId(UUID.randomUUID().toString())
+                .status("ACTIVE")
+                .build());
+
+        assertThrows(IllegalArgumentException.class, () -> auctionService.createAuction(request));
+        verify(auctionRepository, never()).save(any(Auction.class));
     }
 }
