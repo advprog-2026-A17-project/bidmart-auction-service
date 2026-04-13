@@ -1,8 +1,10 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.service;
 
+import id.ac.ui.cs.advprog.bidmartauctionservice.client.CatalogueServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.client.WalletServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.catalogue.ListingSummaryResponse;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.event.BidPlacedEvent;
@@ -29,6 +31,7 @@ public class AuctionServiceImpl implements AuctionService {
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final WalletServiceClient walletServiceClient;
+    private final CatalogueServiceClient catalogueServiceClient;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -38,6 +41,7 @@ public class AuctionServiceImpl implements AuctionService {
 
         Auction auction = auctionRepository.findByIdWithPessimisticWriteLock(auctionId)
                 .orElseThrow(() -> new IllegalArgumentException("Auction not found with ID: " + auctionId));
+        requireActiveListing(auction.getListingId());
 
         if (auction.getStatus() != AuctionStatus.ACTIVE && auction.getStatus() != AuctionStatus.EXTENDED) {
             throw new IllegalStateException("Bids can only be placed on ACTIVE or EXTENDED auctions.");
@@ -115,6 +119,11 @@ public class AuctionServiceImpl implements AuctionService {
     @Override
     @Transactional
     public Auction createAuction(CreateAuctionRequest requestDTO) {
+        ListingSummaryResponse listing = requireActiveListing(requestDTO.getListingId());
+        if (!requestDTO.getSellerId().toString().equals(listing.getSellerId())) {
+            throw new IllegalArgumentException("Listing seller does not match auction seller");
+        }
+
         if (!requestDTO.getEndTime().isAfter(requestDTO.getStartTime())) {
             throw new IllegalArgumentException("End time must be after start time");
         }
@@ -142,5 +151,13 @@ public class AuctionServiceImpl implements AuctionService {
                 .build();
 
         return auctionRepository.save(auction);
+    }
+
+    private ListingSummaryResponse requireActiveListing(UUID listingId) {
+        ListingSummaryResponse listing = catalogueServiceClient.getListing(listingId);
+        if (listing.getStatus() == null || !"ACTIVE".equalsIgnoreCase(listing.getStatus())) {
+            throw new IllegalStateException("Listing is not active");
+        }
+        return listing;
     }
 }
