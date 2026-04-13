@@ -21,7 +21,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -106,6 +105,28 @@ class AuctionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(auctionId.toString()))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    void testGetAuctionById_NotFound() throws Exception {
+        UUID auctionId = UUID.randomUUID();
+        when(auctionService.getAuctionById(auctionId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/v1/auctions/{auctionId}", auctionId)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("AUCTION_NOT_FOUND"))
+                .andExpect(jsonPath("$.path").value("/api/v1/auctions/" + auctionId));
+    }
+
+    @Test
+    void testGetAuctions_InvalidPageSizeReturnsValidationError() throws Exception {
+        mockMvc.perform(get("/api/v1/auctions")
+                        .param("size", "0")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.path").value("/api/v1/auctions"));
     }
 
     @Test

@@ -14,6 +14,9 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycl
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -110,6 +113,30 @@ public class AuctionServiceImpl implements AuctionService {
     @Transactional(readOnly = true)
     public List<Auction> getAllAuctions() {
         return auctionRepository.findAll();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Auction> searchAuctions(AuctionStatus status, UUID sellerId, UUID listingId, Pageable pageable) {
+        Specification<Auction> specification = (root, query, cb) -> cb.conjunction();
+
+        if (status != null) {
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+        if (sellerId != null) {
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("sellerId"), sellerId));
+        }
+        if (listingId != null) {
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("listingId"), listingId));
+        }
+
+        return auctionRepository.findAll(specification, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Auction> getAuctionById(UUID auctionId) {
+        return auctionRepository.findById(auctionId);
     }
 
     @Override
