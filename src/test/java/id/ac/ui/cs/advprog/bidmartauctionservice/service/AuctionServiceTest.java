@@ -18,7 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -53,7 +52,7 @@ class AuctionServiceTest {
     private CatalogueServiceClient catalogueServiceClient;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private OutboxEventService outboxEventService;
 
     @InjectMocks
     private AuctionServiceImpl auctionService;
@@ -103,13 +102,13 @@ class AuctionServiceTest {
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         Bid result = auctionService.placeBid(auctionId, validBidRequest);
 
         assertEquals(new BigDecimal("150.00"), result.getAuction().getCurrentHighestBid());
         verify(auctionRepository).save(activeAuction);
         verify(bidRepository).save(any(Bid.class));
+        verify(outboxEventService).enqueueBidPlaced(savedBid.getId());
     }
 
     @Test
@@ -161,7 +160,6 @@ class AuctionServiceTest {
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         auctionService.placeBid(auctionId, validBidRequest);
 
@@ -190,7 +188,6 @@ class AuctionServiceTest {
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         Bid result = auctionService.placeBid(auctionId, validBidRequest);
 
@@ -245,7 +242,6 @@ class AuctionServiceTest {
 
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
         doNothing().when(walletServiceClient).releaseFunds(any(ReleaseFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         auctionService.placeBid(auctionId, validBidRequest);
 
