@@ -1,8 +1,11 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.scheduler;
 
+import id.ac.ui.cs.advprog.bidmartauctionservice.client.WalletServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
+import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +17,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -31,6 +33,12 @@ class AuctionLifecycleSchedulerTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private BidRepository bidRepository;
+
+    @Mock
+    private WalletServiceClient walletServiceClient;
 
     @InjectMocks
     private AuctionLifecycleScheduler scheduler;
@@ -80,11 +88,17 @@ class AuctionLifecycleSchedulerTest {
                 .thenReturn(Arrays.asList(activeAuction));
 
         doNothing().when(eventPublisher).publishEvent(any());
-
+        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(activeAuction.getId()))
+                .thenReturn(java.util.Optional.of(Bid.builder()
+                        .auction(activeAuction)
+                        .bidderId(UUID.randomUUID())
+                        .bidAmount(new BigDecimal("600.00"))
+                        .build()));
         scheduler.closeExpiredAuctions();
 
         assert activeAuction.getStatus() == AuctionStatus.WON;
         verify(auctionRepository).save(activeAuction);
+        verify(walletServiceClient).convertFunds(any());
     }
 
     @Test
@@ -95,10 +109,10 @@ class AuctionLifecycleSchedulerTest {
                 .thenReturn(Arrays.asList(extendedAuction));
 
         doNothing().when(eventPublisher).publishEvent(any());
-
         scheduler.closeExpiredAuctions();
 
         assert extendedAuction.getStatus() == AuctionStatus.UNSOLD;
         verify(auctionRepository).save(extendedAuction);
+        verify(walletServiceClient, org.mockito.Mockito.never()).convertFunds(any());
     }
 }
