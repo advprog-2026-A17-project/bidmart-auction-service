@@ -12,14 +12,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -48,21 +51,82 @@ class AuctionControllerTest {
     private AuthServiceClient authServiceClient;
 
     @Test
-    void testGetAllAuctions() throws Exception {
+    void testGetAuctions_WithPaginationAndFilters() throws Exception {
         Auction auction = Auction.builder()
                 .id(UUID.randomUUID())
                 .listingId(UUID.randomUUID())
                 .currentHighestBid(new BigDecimal("100.00"))
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("50.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("200.00"))
+                .startTime(Instant.now().minusSeconds(3600))
+                .endTime(Instant.now().plusSeconds(3600))
+                .status(AuctionStatus.ACTIVE)
+                .build();
+        Page<Auction> page = new PageImpl<>(List.of(auction), PageRequest.of(0, 10), 1);
+
+        when(auctionService.searchAuctions(any(), any(), any(), any())).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/auctions")
+                        .param("status", "ACTIVE")
+                        .param("page", "0")
+                        .param("size", "10")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].currentHighestBid").value(100.0))
+                .andExpect(jsonPath("$.items[0].status").value("ACTIVE"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalItems").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1));
+    }
+
+    @Test
+    void testGetAuctionById_Success() throws Exception {
+        UUID auctionId = UUID.randomUUID();
+        Auction auction = Auction.builder()
+                .id(auctionId)
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("100.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("500.00"))
+                .startTime(Instant.now())
+                .endTime(Instant.now().plusSeconds(3600))
                 .status(AuctionStatus.ACTIVE)
                 .build();
 
-        when(auctionService.getAllAuctions()).thenReturn(Arrays.asList(auction));
+        when(auctionService.getAuctionById(auctionId)).thenReturn(Optional.of(auction));
 
-        mockMvc.perform(get("/api/v1/auctions")
+        mockMvc.perform(get("/api/v1/auctions/{auctionId}", auctionId)
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].currentHighestBid").value(100.0))
-                .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+                .andExpect(jsonPath("$.id").value(auctionId.toString()))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    void testGetAuctionById_NotFound() throws Exception {
+        UUID auctionId = UUID.randomUUID();
+        when(auctionService.getAuctionById(auctionId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/v1/auctions/{auctionId}", auctionId)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("AUCTION_NOT_FOUND"))
+                .andExpect(jsonPath("$.path").value("/api/v1/auctions/" + auctionId));
+    }
+
+    @Test
+    void testGetAuctions_InvalidPageSizeReturnsValidationError() throws Exception {
+        mockMvc.perform(get("/api/v1/auctions")
+                        .param("size", "0")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.path").value("/api/v1/auctions"));
     }
 
     @Test
