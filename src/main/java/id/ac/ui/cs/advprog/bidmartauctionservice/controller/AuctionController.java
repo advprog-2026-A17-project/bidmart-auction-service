@@ -1,15 +1,15 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.controller;
 
+import id.ac.ui.cs.advprog.bidmartauctionservice.client.AuthServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidResponseDTO;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
+import id.ac.ui.cs.advprog.bidmartauctionservice.exception.PermissionDeniedException;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
-import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.AuctionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +23,7 @@ import java.util.UUID;
 public class AuctionController {
 
     private final AuctionService auctionService;
+    private final AuthServiceClient authServiceClient;
 
     @GetMapping
     public ResponseEntity<List<Auction>> getAllAuctions() {
@@ -30,7 +31,10 @@ public class AuctionController {
     }
 
     @PostMapping
-    public ResponseEntity<Auction> createAuction(@Valid @RequestBody CreateAuctionRequest requestDTO) {
+    public ResponseEntity<Auction> createAuction(
+            @RequestHeader(value = "X-User-Email", required = false) String userEmailHeader,
+            @Valid @RequestBody CreateAuctionRequest requestDTO) {
+        enforcePermission(userEmailHeader, "auction:create");
         Auction auction = auctionService.createAuction(requestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(auction);
     }
@@ -39,8 +43,10 @@ public class AuctionController {
     public ResponseEntity<BidResponseDTO> placeBid(
             @PathVariable UUID auctionId,
             @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmailHeader,
             @Valid @RequestBody BidRequestDTO requestDTO) {
         requestDTO.setBidderId(resolveBidderId(userIdHeader, requestDTO.getBidderId()));
+        enforcePermission(userEmailHeader, "bid:place");
 
         Bid bid = auctionService.placeBid(auctionId, requestDTO);
 
@@ -91,5 +97,15 @@ public class AuctionController {
             throw new IllegalArgumentException("Bidder identity is required");
         }
         return effectiveBidderId;
+    }
+
+    private void enforcePermission(String userEmailHeader, String permission) {
+        if (userEmailHeader == null || userEmailHeader.isBlank()) {
+            throw new IllegalArgumentException("X-User-Email header is required");
+        }
+        boolean allowed = authServiceClient.hasPermission(userEmailHeader, permission);
+        if (!allowed) {
+            throw new PermissionDeniedException("Permission denied: " + permission);
+        }
     }
 }
