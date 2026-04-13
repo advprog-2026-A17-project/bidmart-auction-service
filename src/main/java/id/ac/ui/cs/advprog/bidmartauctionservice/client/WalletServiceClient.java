@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.client;
 
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ConvertFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,7 @@ public class WalletServiceClient {
 
     private final RestTemplate restTemplate;
 
-    @Value("${wallet.service.url:http://localhost:8082}")
+    @Value("${wallet.service.url:http://localhost:8083}")
     private String walletServiceUrl;
 
     public void holdFunds(HoldFundsRequest request) {
@@ -23,6 +24,11 @@ public class WalletServiceClient {
 
     public void releaseFunds(ReleaseFundsRequest request) {
         String url = walletServiceUrl + "/api/v1/wallet/release";
+        restTemplate.postForObject(url, request, Void.class);
+    }
+
+    public void convertFunds(ConvertFundsRequest request) {
+        String url = walletServiceUrl + "/api/v1/wallet/convert";
         restTemplate.postForObject(url, request, Void.class);
     }
 }
