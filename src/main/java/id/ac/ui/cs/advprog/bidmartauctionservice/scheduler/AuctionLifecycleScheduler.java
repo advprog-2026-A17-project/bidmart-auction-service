@@ -6,6 +6,7 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.event.AuctionEndedEvent;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycleStateMachine;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,11 +33,16 @@ public class AuctionLifecycleScheduler {
     @Transactional
     public void closeExpiredAuctions() {
         Instant now = Instant.now();
-        List<AuctionStatus> statuses = Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED);
+        activateDraftAuctions(now);
 
+        List<AuctionStatus> statuses = Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED);
         List<Auction> expiredAuctions = auctionRepository.findEndedAuctionsByMultipleStatuses(statuses, now);
 
         for (Auction auction : expiredAuctions) {
+            AuctionLifecycleStateMachine.enforceTransition(auction.getStatus(), AuctionStatus.CLOSED);
+            auction.setStatus(AuctionStatus.CLOSED);
+            auctionRepository.save(auction);
+
             AuctionStatus finalStatus;
             if (auction.getCurrentHighestBid() != null &&
                 auction.getCurrentHighestBid().compareTo(auction.getReservePrice()) >= 0) {
@@ -45,6 +51,7 @@ public class AuctionLifecycleScheduler {
                 finalStatus = AuctionStatus.UNSOLD;
             }
 
+            AuctionLifecycleStateMachine.enforceTransition(auction.getStatus(), finalStatus);
             auction.setStatus(finalStatus);
             auctionRepository.save(auction);
 
@@ -61,6 +68,15 @@ public class AuctionLifecycleScheduler {
             }
 
             eventPublisher.publishEvent(new AuctionEndedEvent(this, auction, finalStatus));
+        }
+    }
+
+    private void activateDraftAuctions(Instant now) {
+        List<Auction> draftAuctions = auctionRepository.findByStatusAndStartTimeBefore(AuctionStatus.DRAFT, now);
+        for (Auction draftAuction : draftAuctions) {
+            AuctionLifecycleStateMachine.enforceTransition(draftAuction.getStatus(), AuctionStatus.ACTIVE);
+            draftAuction.setStatus(AuctionStatus.ACTIVE);
+            auctionRepository.save(draftAuction);
         }
     }
 }

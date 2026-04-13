@@ -24,4 +24,6 @@ public interface AuctionRepository extends JpaRepository<Auction, UUID> {
 
     @Query("SELECT a FROM Auction a WHERE a.status IN :statuses AND a.endTime < :time")
     List<Auction> findEndedAuctionsByMultipleStatuses(@Param("statuses") List<AuctionStatus> statuses, @Param("time") Instant time);
+
+    List<Auction> findByStatusAndStartTimeBefore(AuctionStatus status, Instant time);
 }
