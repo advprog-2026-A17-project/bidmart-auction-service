@@ -115,6 +115,21 @@ public class AuctionServiceImpl implements AuctionService {
     @Override
     @Transactional
     public Auction createAuction(CreateAuctionRequest requestDTO) {
+        if (!requestDTO.getEndTime().isAfter(requestDTO.getStartTime())) {
+            throw new IllegalArgumentException("End time must be after start time");
+        }
+        if (requestDTO.getReservePrice().compareTo(requestDTO.getStartingPrice()) < 0) {
+            throw new IllegalArgumentException("Reserve price must be greater than or equal to starting price");
+        }
+        if (requestDTO.getStartingPrice().compareTo(BigDecimal.ZERO) <= 0 ||
+            requestDTO.getMinimumIncrement().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Starting price and minimum increment must be greater than zero");
+        }
+
+        AuctionStatus initialStatus = requestDTO.getStartTime().isAfter(Instant.now())
+                ? AuctionStatus.DRAFT
+                : AuctionStatus.ACTIVE;
+
         Auction auction = Auction.builder()
                 .listingId(requestDTO.getListingId())
                 .sellerId(requestDTO.getSellerId())
@@ -123,7 +138,7 @@ public class AuctionServiceImpl implements AuctionService {
                 .reservePrice(requestDTO.getReservePrice())
                 .startTime(requestDTO.getStartTime())
                 .endTime(requestDTO.getEndTime())
-                .status(AuctionStatus.ACTIVE)
+                .status(initialStatus)
                 .build();
 
         return auctionRepository.save(auction);
