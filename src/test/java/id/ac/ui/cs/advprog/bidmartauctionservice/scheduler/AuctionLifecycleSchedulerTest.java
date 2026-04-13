@@ -6,13 +6,13 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.OutboxEventService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -21,7 +21,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,7 +32,7 @@ class AuctionLifecycleSchedulerTest {
     private AuctionRepository auctionRepository;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private OutboxEventService outboxEventService;
 
     @Mock
     private BidRepository bidRepository;
@@ -45,6 +45,7 @@ class AuctionLifecycleSchedulerTest {
 
     private Auction activeAuction;
     private Auction extendedAuction;
+    private Auction draftAuction;
     private UUID auctionId1;
     private UUID auctionId2;
 
@@ -78,16 +79,29 @@ class AuctionLifecycleSchedulerTest {
                 .status(AuctionStatus.EXTENDED)
                 .currentHighestBid(new BigDecimal("400.00"))
                 .build();
+
+        draftAuction = Auction.builder()
+                .id(UUID.randomUUID())
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("100.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("500.00"))
+                .startTime(Instant.now().minusSeconds(60))
+                .endTime(Instant.now().plusSeconds(3600))
+                .status(AuctionStatus.DRAFT)
+                .build();
     }
 
     @Test
     void testCloseAuctions_AuctionWon() {
+        when(auctionRepository.findByStatusAndStartTimeBefore(eq(AuctionStatus.DRAFT), any(Instant.class)))
+                .thenReturn(java.util.Collections.emptyList());
         when(auctionRepository.findEndedAuctionsByMultipleStatuses(
                 eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(activeAuction));
 
-        doNothing().when(eventPublisher).publishEvent(any());
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(activeAuction.getId()))
                 .thenReturn(java.util.Optional.of(Bid.builder()
                         .auction(activeAuction)
@@ -97,22 +111,40 @@ class AuctionLifecycleSchedulerTest {
         scheduler.closeExpiredAuctions();
 
         assert activeAuction.getStatus() == AuctionStatus.WON;
-        verify(auctionRepository).save(activeAuction);
+        verify(auctionRepository, times(2)).save(activeAuction);
         verify(walletServiceClient).convertFunds(any());
+        verify(outboxEventService).enqueueAuctionEnded(activeAuction.getId(), AuctionStatus.WON);
     }
 
     @Test
     void testCloseAuctions_AuctionUnsold() {
+        when(auctionRepository.findByStatusAndStartTimeBefore(eq(AuctionStatus.DRAFT), any(Instant.class)))
+                .thenReturn(java.util.Collections.emptyList());
         when(auctionRepository.findEndedAuctionsByMultipleStatuses(
                 eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(extendedAuction));
 
-        doNothing().when(eventPublisher).publishEvent(any());
         scheduler.closeExpiredAuctions();
 
         assert extendedAuction.getStatus() == AuctionStatus.UNSOLD;
-        verify(auctionRepository).save(extendedAuction);
+        verify(auctionRepository, times(2)).save(extendedAuction);
         verify(walletServiceClient, org.mockito.Mockito.never()).convertFunds(any());
+        verify(outboxEventService).enqueueAuctionEnded(extendedAuction.getId(), AuctionStatus.UNSOLD);
+    }
+
+    @Test
+    void testCloseAuctions_ActivatesDraftAuctionsBeforeExpiryProcessing() {
+        when(auctionRepository.findByStatusAndStartTimeBefore(eq(AuctionStatus.DRAFT), any(Instant.class)))
+                .thenReturn(java.util.List.of(draftAuction));
+        when(auctionRepository.findEndedAuctionsByMultipleStatuses(
+                eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
+                any(Instant.class)))
+                .thenReturn(java.util.Collections.emptyList());
+
+        scheduler.closeExpiredAuctions();
+
+        assert draftAuction.getStatus() == AuctionStatus.ACTIVE;
+        verify(auctionRepository).save(draftAuction);
     }
 }

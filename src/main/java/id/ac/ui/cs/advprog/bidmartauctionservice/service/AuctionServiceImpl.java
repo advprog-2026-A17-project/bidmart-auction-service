@@ -1,18 +1,22 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.service;
 
+import id.ac.ui.cs.advprog.bidmartauctionservice.client.CatalogueServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.client.WalletServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.catalogue.ListingSummaryResponse;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
-import id.ac.ui.cs.advprog.bidmartauctionservice.event.BidPlacedEvent;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycleStateMachine;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -29,7 +33,8 @@ public class AuctionServiceImpl implements AuctionService {
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final WalletServiceClient walletServiceClient;
-    private final ApplicationEventPublisher eventPublisher;
+    private final CatalogueServiceClient catalogueServiceClient;
+    private final OutboxEventService outboxEventService;
 
     @Override
     @Transactional
@@ -38,6 +43,7 @@ public class AuctionServiceImpl implements AuctionService {
 
         Auction auction = auctionRepository.findByIdWithPessimisticWriteLock(auctionId)
                 .orElseThrow(() -> new IllegalArgumentException("Auction not found with ID: " + auctionId));
+        requireActiveListing(auction.getListingId());
 
         if (auction.getStatus() != AuctionStatus.ACTIVE && auction.getStatus() != AuctionStatus.EXTENDED) {
             throw new IllegalStateException("Bids can only be placed on ACTIVE or EXTENDED auctions.");
@@ -82,7 +88,10 @@ public class AuctionServiceImpl implements AuctionService {
         Duration remainingTime = Duration.between(now, auction.getEndTime());
         if (remainingTime.toMinutes() < 2) {
             auction.setEndTime(now.plus(Duration.ofMinutes(2)));
-            auction.setStatus(AuctionStatus.EXTENDED);
+            if (auction.getStatus() == AuctionStatus.ACTIVE) {
+                AuctionLifecycleStateMachine.enforceTransition(auction.getStatus(), AuctionStatus.EXTENDED);
+                auction.setStatus(AuctionStatus.EXTENDED);
+            }
         }
 
         auction.setCurrentHighestBid(requestDTO.getBidAmount());
@@ -96,7 +105,7 @@ public class AuctionServiceImpl implements AuctionService {
                 .build();
 
         Bid savedBid = bidRepository.save(bid);
-        eventPublisher.publishEvent(new BidPlacedEvent(this, savedBid));
+        outboxEventService.enqueueBidPlaced(savedBid.getId());
         return savedBid;
     }
 
@@ -108,6 +117,30 @@ public class AuctionServiceImpl implements AuctionService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<Auction> searchAuctions(AuctionStatus status, UUID sellerId, UUID listingId, Pageable pageable) {
+        Specification<Auction> specification = (root, query, cb) -> cb.conjunction();
+
+        if (status != null) {
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+        if (sellerId != null) {
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("sellerId"), sellerId));
+        }
+        if (listingId != null) {
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("listingId"), listingId));
+        }
+
+        return auctionRepository.findAll(specification, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Auction> getAuctionById(UUID auctionId) {
+        return auctionRepository.findById(auctionId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Bid> getBidHistoryByAuctionId(UUID auctionId) {
         return bidRepository.findByAuctionIdOrderByBidTimeDesc(auctionId);
     }
@@ -115,6 +148,11 @@ public class AuctionServiceImpl implements AuctionService {
     @Override
     @Transactional
     public Auction createAuction(CreateAuctionRequest requestDTO) {
+        ListingSummaryResponse listing = requireActiveListing(requestDTO.getListingId());
+        if (!requestDTO.getSellerId().toString().equals(listing.getSellerId())) {
+            throw new IllegalArgumentException("Listing seller does not match auction seller");
+        }
+
         if (!requestDTO.getEndTime().isAfter(requestDTO.getStartTime())) {
             throw new IllegalArgumentException("End time must be after start time");
         }
@@ -142,5 +180,13 @@ public class AuctionServiceImpl implements AuctionService {
                 .build();
 
         return auctionRepository.save(auction);
+    }
+
+    private ListingSummaryResponse requireActiveListing(UUID listingId) {
+        ListingSummaryResponse listing = catalogueServiceClient.getListing(listingId);
+        if (listing.getStatus() == null || !"ACTIVE".equalsIgnoreCase(listing.getStatus())) {
+            throw new IllegalStateException("Listing is not active");
+        }
+        return listing;
     }
 }
