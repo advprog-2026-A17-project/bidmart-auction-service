@@ -94,8 +94,6 @@ class AuctionLifecycleSchedulerTest {
                         .bidderId(UUID.randomUUID())
                         .bidAmount(new BigDecimal("600.00"))
                         .build()));
-        doNothing().when(walletServiceClient).convertFunds(any());
-
         scheduler.closeExpiredAuctions();
 
         assert activeAuction.getStatus() == AuctionStatus.WON;
@@ -111,8 +109,6 @@ class AuctionLifecycleSchedulerTest {
                 .thenReturn(Arrays.asList(extendedAuction));
 
         doNothing().when(eventPublisher).publishEvent(any());
-        doNothing().when(walletServiceClient).convertFunds(any());
-
         scheduler.closeExpiredAuctions();
 
         assert extendedAuction.getStatus() == AuctionStatus.UNSOLD;
