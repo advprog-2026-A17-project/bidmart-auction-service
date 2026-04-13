@@ -38,7 +38,9 @@ public class AuctionController {
     @PostMapping("/{auctionId}/bids")
     public ResponseEntity<BidResponseDTO> placeBid(
             @PathVariable UUID auctionId,
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
             @Valid @RequestBody BidRequestDTO requestDTO) {
+        requestDTO.setBidderId(resolveBidderId(userIdHeader, requestDTO.getBidderId()));
 
         Bid bid = auctionService.placeBid(auctionId, requestDTO);
 
@@ -68,5 +70,26 @@ public class AuctionController {
                 .toList();
 
         return ResponseEntity.ok(responseDTOs);
+    }
+
+    private UUID resolveBidderId(String userIdHeader, UUID payloadBidderId) {
+        UUID headerBidderId = null;
+        if (userIdHeader != null && !userIdHeader.isBlank()) {
+            try {
+                headerBidderId = UUID.fromString(userIdHeader);
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("Invalid X-User-Id header");
+            }
+        }
+
+        if (headerBidderId != null && payloadBidderId != null && !headerBidderId.equals(payloadBidderId)) {
+            throw new IllegalArgumentException("Bidder identity mismatch between payload and header");
+        }
+
+        UUID effectiveBidderId = headerBidderId != null ? headerBidderId : payloadBidderId;
+        if (effectiveBidderId == null) {
+            throw new IllegalArgumentException("Bidder identity is required");
+        }
+        return effectiveBidderId;
     }
 }
