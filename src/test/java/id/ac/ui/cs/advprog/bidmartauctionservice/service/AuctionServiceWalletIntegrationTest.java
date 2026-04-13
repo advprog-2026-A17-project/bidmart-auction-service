@@ -1,7 +1,9 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.service;
 
+import id.ac.ui.cs.advprog.bidmartauctionservice.client.CatalogueServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.client.WalletServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.catalogue.ListingSummaryResponse;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
@@ -14,7 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -41,7 +42,10 @@ class AuctionServiceWalletIntegrationTest {
     private WalletServiceClient walletServiceClient;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private CatalogueServiceClient catalogueServiceClient;
+
+    @Mock
+    private OutboxEventService outboxEventService;
 
     @InjectMocks
     private AuctionServiceImpl auctionService;
@@ -80,6 +84,11 @@ class AuctionServiceWalletIntegrationTest {
 
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId))
                 .thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         Bid savedBid = Bid.builder()
                 .id(UUID.randomUUID())
@@ -92,7 +101,6 @@ class AuctionServiceWalletIntegrationTest {
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
-        doNothing().when(eventPublisher).publishEvent(any());
 
         auctionService.placeBid(auctionId, requestDTO);
 
@@ -108,6 +116,11 @@ class AuctionServiceWalletIntegrationTest {
 
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId))
                 .thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
 
         doThrow(new RuntimeException("Wallet service error"))
                 .when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));

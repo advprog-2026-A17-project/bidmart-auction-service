@@ -16,7 +16,6 @@ import java.util.UUID;
 @AllArgsConstructor
 public class BidRequestDTO {
 
-    @NotNull(message = "Bidder ID cannot be null")
     private UUID bidderId;
 
     @NotNull(message = "Bid amount cannot be null")
