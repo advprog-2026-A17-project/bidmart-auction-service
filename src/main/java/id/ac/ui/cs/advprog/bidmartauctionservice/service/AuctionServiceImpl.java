@@ -11,6 +11,7 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.event.BidPlacedEvent;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycleStateMachine;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import lombok.RequiredArgsConstructor;
@@ -86,7 +87,10 @@ public class AuctionServiceImpl implements AuctionService {
         Duration remainingTime = Duration.between(now, auction.getEndTime());
         if (remainingTime.toMinutes() < 2) {
             auction.setEndTime(now.plus(Duration.ofMinutes(2)));
-            auction.setStatus(AuctionStatus.EXTENDED);
+            if (auction.getStatus() == AuctionStatus.ACTIVE) {
+                AuctionLifecycleStateMachine.enforceTransition(auction.getStatus(), AuctionStatus.EXTENDED);
+                auction.setStatus(AuctionStatus.EXTENDED);
+            }
         }
 
         auction.setCurrentHighestBid(requestDTO.getBidAmount());

@@ -22,6 +22,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +46,7 @@ class AuctionLifecycleSchedulerTest {
 
     private Auction activeAuction;
     private Auction extendedAuction;
+    private Auction draftAuction;
     private UUID auctionId1;
     private UUID auctionId2;
 
@@ -78,10 +80,24 @@ class AuctionLifecycleSchedulerTest {
                 .status(AuctionStatus.EXTENDED)
                 .currentHighestBid(new BigDecimal("400.00"))
                 .build();
+
+        draftAuction = Auction.builder()
+                .id(UUID.randomUUID())
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("100.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("500.00"))
+                .startTime(Instant.now().minusSeconds(60))
+                .endTime(Instant.now().plusSeconds(3600))
+                .status(AuctionStatus.DRAFT)
+                .build();
     }
 
     @Test
     void testCloseAuctions_AuctionWon() {
+        when(auctionRepository.findByStatusAndStartTimeBefore(eq(AuctionStatus.DRAFT), any(Instant.class)))
+                .thenReturn(java.util.Collections.emptyList());
         when(auctionRepository.findEndedAuctionsByMultipleStatuses(
                 eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
                 any(Instant.class)))
@@ -97,12 +113,14 @@ class AuctionLifecycleSchedulerTest {
         scheduler.closeExpiredAuctions();
 
         assert activeAuction.getStatus() == AuctionStatus.WON;
-        verify(auctionRepository).save(activeAuction);
+        verify(auctionRepository, times(2)).save(activeAuction);
         verify(walletServiceClient).convertFunds(any());
     }
 
     @Test
     void testCloseAuctions_AuctionUnsold() {
+        when(auctionRepository.findByStatusAndStartTimeBefore(eq(AuctionStatus.DRAFT), any(Instant.class)))
+                .thenReturn(java.util.Collections.emptyList());
         when(auctionRepository.findEndedAuctionsByMultipleStatuses(
                 eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
                 any(Instant.class)))
@@ -112,7 +130,22 @@ class AuctionLifecycleSchedulerTest {
         scheduler.closeExpiredAuctions();
 
         assert extendedAuction.getStatus() == AuctionStatus.UNSOLD;
-        verify(auctionRepository).save(extendedAuction);
+        verify(auctionRepository, times(2)).save(extendedAuction);
         verify(walletServiceClient, org.mockito.Mockito.never()).convertFunds(any());
+    }
+
+    @Test
+    void testCloseAuctions_ActivatesDraftAuctionsBeforeExpiryProcessing() {
+        when(auctionRepository.findByStatusAndStartTimeBefore(eq(AuctionStatus.DRAFT), any(Instant.class)))
+                .thenReturn(java.util.List.of(draftAuction));
+        when(auctionRepository.findEndedAuctionsByMultipleStatuses(
+                eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
+                any(Instant.class)))
+                .thenReturn(java.util.Collections.emptyList());
+
+        scheduler.closeExpiredAuctions();
+
+        assert draftAuction.getStatus() == AuctionStatus.ACTIVE;
+        verify(auctionRepository).save(draftAuction);
     }
 }
