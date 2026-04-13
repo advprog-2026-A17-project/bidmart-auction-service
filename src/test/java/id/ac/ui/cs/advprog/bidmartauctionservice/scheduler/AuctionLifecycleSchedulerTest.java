@@ -6,13 +6,13 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.OutboxEventService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -21,7 +21,6 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,7 +32,7 @@ class AuctionLifecycleSchedulerTest {
     private AuctionRepository auctionRepository;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private OutboxEventService outboxEventService;
 
     @Mock
     private BidRepository bidRepository;
@@ -103,7 +102,6 @@ class AuctionLifecycleSchedulerTest {
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(activeAuction));
 
-        doNothing().when(eventPublisher).publishEvent(any());
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(activeAuction.getId()))
                 .thenReturn(java.util.Optional.of(Bid.builder()
                         .auction(activeAuction)
@@ -115,6 +113,7 @@ class AuctionLifecycleSchedulerTest {
         assert activeAuction.getStatus() == AuctionStatus.WON;
         verify(auctionRepository, times(2)).save(activeAuction);
         verify(walletServiceClient).convertFunds(any());
+        verify(outboxEventService).enqueueAuctionEnded(activeAuction.getId(), AuctionStatus.WON);
     }
 
     @Test
@@ -126,12 +125,12 @@ class AuctionLifecycleSchedulerTest {
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(extendedAuction));
 
-        doNothing().when(eventPublisher).publishEvent(any());
         scheduler.closeExpiredAuctions();
 
         assert extendedAuction.getStatus() == AuctionStatus.UNSOLD;
         verify(auctionRepository, times(2)).save(extendedAuction);
         verify(walletServiceClient, org.mockito.Mockito.never()).convertFunds(any());
+        verify(outboxEventService).enqueueAuctionEnded(extendedAuction.getId(), AuctionStatus.UNSOLD);
     }
 
     @Test
