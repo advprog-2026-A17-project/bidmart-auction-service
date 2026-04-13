@@ -1,6 +1,7 @@
 package id.ac.ui.cs.advprog.bidmartauctionservice.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import id.ac.ui.cs.advprog.bidmartauctionservice.client.AuthServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
@@ -43,6 +44,9 @@ class AuctionControllerTest {
     @MockitoBean
     private AuctionService auctionService;
 
+    @MockitoBean
+    private AuthServiceClient authServiceClient;
+
     @Test
     void testGetAllAuctions() throws Exception {
         Auction auction = Auction.builder()
@@ -80,9 +84,11 @@ class AuctionControllerTest {
                 .bidTime(Instant.now())
                 .build();
 
+        when(authServiceClient.hasPermission("buyer@example.com", "bid:place")).thenReturn(true);
         when(auctionService.placeBid(eq(auctionId), any(BidRequestDTO.class))).thenReturn(bid);
 
         mockMvc.perform(post("/api/v1/auctions/{auctionId}/bids", auctionId)
+                        .header("X-User-Email", "buyer@example.com")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isCreated())
@@ -122,9 +128,11 @@ class AuctionControllerTest {
                 .build();
 
         when(auctionService.placeBid(eq(auctionId), any(BidRequestDTO.class))).thenReturn(bid);
+        when(authServiceClient.hasPermission("buyer@example.com", "bid:place")).thenReturn(true);
 
         mockMvc.perform(post("/api/v1/auctions/{auctionId}/bids", auctionId)
                         .header("X-User-Id", bidderId.toString())
+                        .header("X-User-Email", "buyer@example.com")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isCreated())
@@ -144,6 +152,7 @@ class AuctionControllerTest {
 
         mockMvc.perform(post("/api/v1/auctions/{auctionId}/bids", auctionId)
                         .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Email", "buyer@example.com")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isBadRequest());
@@ -212,13 +221,55 @@ class AuctionControllerTest {
                 .status(AuctionStatus.ACTIVE)
                 .build();
 
+        when(authServiceClient.hasPermission("seller@example.com", "auction:create")).thenReturn(true);
         when(auctionService.createAuction(any(CreateAuctionRequest.class))).thenReturn(auction);
 
         mockMvc.perform(post("/api/v1/auctions")
+                        .header("X-User-Email", "seller@example.com")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.listingId").value(listingId.toString()))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    void testPlaceBidEndpoint_ForbiddenWhenPermissionDenied() throws Exception {
+        UUID auctionId = UUID.randomUUID();
+        UUID bidderId = UUID.randomUUID();
+
+        BidRequestDTO requestDTO = BidRequestDTO.builder()
+                .bidderId(bidderId)
+                .bidAmount(new BigDecimal("150.00"))
+                .build();
+
+        when(authServiceClient.hasPermission("buyer@example.com", "bid:place")).thenReturn(false);
+
+        mockMvc.perform(post("/api/v1/auctions/{auctionId}/bids", auctionId)
+                        .header("X-User-Email", "buyer@example.com")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestDTO)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testCreateAuction_ForbiddenWhenPermissionDenied() throws Exception {
+        CreateAuctionRequest requestDTO = CreateAuctionRequest.builder()
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("100.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("500.00"))
+                .startTime(Instant.now())
+                .endTime(Instant.now().plusSeconds(3600))
+                .build();
+
+        when(authServiceClient.hasPermission("seller@example.com", "auction:create")).thenReturn(false);
+
+        mockMvc.perform(post("/api/v1/auctions")
+                        .header("X-User-Email", "seller@example.com")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestDTO)))
+                .andExpect(status().isForbidden());
     }
 }
