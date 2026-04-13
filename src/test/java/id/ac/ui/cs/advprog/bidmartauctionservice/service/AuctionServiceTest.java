@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.bidmartauctionservice.service;
 
 import id.ac.ui.cs.advprog.bidmartauctionservice.client.WalletServiceClient;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.BidRequestDTO;
+import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
@@ -28,9 +29,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -211,5 +213,77 @@ class AuctionServiceTest {
                 req.getUserId().equals(previousBidderId) &&
                 req.getAmount().equals(previousBidAmount)
         ));
+    }
+
+    @Test
+    void testCreateAuction_EndTimeBeforeStartTime_ThrowsIllegalArgumentException() {
+        CreateAuctionRequest request = CreateAuctionRequest.builder()
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("100.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("150.00"))
+                .startTime(Instant.now().plusSeconds(3600))
+                .endTime(Instant.now().plusSeconds(1800))
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () -> auctionService.createAuction(request));
+        verify(auctionRepository, never()).save(any(Auction.class));
+    }
+
+    @Test
+    void testCreateAuction_ReserveBelowStarting_ThrowsIllegalArgumentException() {
+        CreateAuctionRequest request = CreateAuctionRequest.builder()
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("200.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("150.00"))
+                .startTime(Instant.now().plusSeconds(300))
+                .endTime(Instant.now().plusSeconds(3600))
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () -> auctionService.createAuction(request));
+        verify(auctionRepository, never()).save(any(Auction.class));
+    }
+
+    @Test
+    void testCreateAuction_FutureStartTime_DefaultsToDraftStatus() {
+        CreateAuctionRequest request = CreateAuctionRequest.builder()
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("200.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("250.00"))
+                .startTime(Instant.now().plusSeconds(600))
+                .endTime(Instant.now().plusSeconds(3600))
+                .build();
+
+        when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Auction saved = auctionService.createAuction(request);
+
+        assertEquals(AuctionStatus.DRAFT, saved.getStatus());
+        verify(auctionRepository).save(any(Auction.class));
+    }
+
+    @Test
+    void testCreateAuction_CurrentStartTime_DefaultsToActiveStatus() {
+        CreateAuctionRequest request = CreateAuctionRequest.builder()
+                .listingId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .startingPrice(new BigDecimal("200.00"))
+                .minimumIncrement(new BigDecimal("10.00"))
+                .reservePrice(new BigDecimal("250.00"))
+                .startTime(Instant.now().minusSeconds(10))
+                .endTime(Instant.now().plusSeconds(3600))
+                .build();
+
+        when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Auction saved = auctionService.createAuction(request);
+
+        assertEquals(AuctionStatus.ACTIVE, saved.getStatus());
+        verify(auctionRepository).save(any(Auction.class));
     }
 }
