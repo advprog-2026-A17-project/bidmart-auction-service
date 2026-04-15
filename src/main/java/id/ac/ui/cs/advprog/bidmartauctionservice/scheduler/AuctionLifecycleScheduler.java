@@ -9,6 +9,7 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycl
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.OutboxEventService;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AuctionSettlementPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -27,6 +28,7 @@ public class AuctionLifecycleScheduler {
     private final BidRepository bidRepository;
     private final WalletServiceClient walletServiceClient;
     private final OutboxEventService outboxEventService;
+    private final AuctionSettlementPolicy settlementPolicy;
 
     @Scheduled(fixedDelayString = "${auction.lifecycle.fixed-delay-ms:30000}")
     @Transactional
@@ -42,13 +44,7 @@ public class AuctionLifecycleScheduler {
             auction.setStatus(AuctionStatus.CLOSED);
             auctionRepository.save(auction);
 
-            AuctionStatus finalStatus;
-            if (auction.getCurrentHighestBid() != null &&
-                auction.getCurrentHighestBid().compareTo(auction.getReservePrice()) >= 0) {
-                finalStatus = AuctionStatus.WON;
-            } else {
-                finalStatus = AuctionStatus.UNSOLD;
-            }
+            AuctionStatus finalStatus = settlementPolicy.determineFinalStatus(auction);
 
             AuctionLifecycleStateMachine.enforceTransition(auction.getStatus(), finalStatus);
             auction.setStatus(finalStatus);
