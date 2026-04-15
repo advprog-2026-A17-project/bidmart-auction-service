@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -166,6 +167,32 @@ class AuctionServiceTest {
         assertEquals(AuctionStatus.EXTENDED, activeAuction.getStatus());
         Duration remaining = Duration.between(Instant.now(), activeAuction.getEndTime());
         assertTrue(remaining.toMinutes() >= 1);
+    }
+
+    @Test
+    void testPlaceBid_AntiSnipingUsesConfiguredThresholdAndExtension() {
+        ReflectionTestUtils.setField(auctionService, "antiSnipingThresholdSeconds", 180L);
+        ReflectionTestUtils.setField(auctionService, "antiSnipingExtensionSeconds", 180L);
+
+        activeAuction.setEndTime(Instant.now().plusSeconds(170));
+        when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.of(activeAuction));
+        when(catalogueServiceClient.getListing(activeAuction.getListingId())).thenReturn(ListingSummaryResponse.builder()
+                .id(activeAuction.getListingId().toString())
+                .sellerId(activeAuction.getSellerId().toString())
+                .status("ACTIVE")
+                .build());
+
+        Bid savedBid = Bid.builder().auction(activeAuction).build();
+        when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
+        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
+        doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
+
+        Instant beforePlaceBid = Instant.now();
+        auctionService.placeBid(auctionId, validBidRequest);
+
+        assertEquals(AuctionStatus.EXTENDED, activeAuction.getStatus());
+        Instant expectedMinEndTime = beforePlaceBid.plusSeconds(180);
+        assertTrue(!activeAuction.getEndTime().isBefore(expectedMinEndTime));
     }
 
     @Test
