@@ -10,6 +10,7 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AntiSnipingPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +47,9 @@ class AuctionServiceWalletIntegrationTest {
 
     @Mock
     private OutboxEventService outboxEventService;
+
+    @Mock
+    private AntiSnipingPolicy antiSnipingPolicy;
 
     @InjectMocks
     private AuctionServiceImpl auctionService;

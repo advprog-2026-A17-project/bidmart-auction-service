@@ -10,18 +10,16 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
-import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycleStateMachine;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AntiSnipingPolicy;
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -36,12 +34,7 @@ public class AuctionServiceImpl implements AuctionService {
     private final WalletServiceClient walletServiceClient;
     private final CatalogueServiceClient catalogueServiceClient;
     private final OutboxEventService outboxEventService;
-
-    @Value("${auction.anti-sniping.threshold-seconds:120}")
-    private long antiSnipingThresholdSeconds = 120;
-
-    @Value("${auction.anti-sniping.extension-seconds:120}")
-    private long antiSnipingExtensionSeconds = 120;
+    private final AntiSnipingPolicy antiSnipingPolicy;
 
     @Override
     @Transactional
@@ -91,15 +84,7 @@ public class AuctionServiceImpl implements AuctionService {
             walletServiceClient.releaseFunds(releaseRequest);
         }
 
-        // Anti-sniping: extend 2 minutes if bid is placed near end time
-        Duration remainingTime = Duration.between(now, auction.getEndTime());
-        if (remainingTime.getSeconds() < antiSnipingThresholdSeconds) {
-            auction.setEndTime(now.plus(Duration.ofSeconds(antiSnipingExtensionSeconds)));
-            if (auction.getStatus() == AuctionStatus.ACTIVE) {
-                AuctionLifecycleStateMachine.enforceTransition(auction.getStatus(), AuctionStatus.EXTENDED);
-                auction.setStatus(AuctionStatus.EXTENDED);
-            }
-        }
+        antiSnipingPolicy.applyForBid(auction, now);
 
         auction.setCurrentHighestBid(requestDTO.getBidAmount());
         auctionRepository.save(auction);
