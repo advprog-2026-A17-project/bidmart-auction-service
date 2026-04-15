@@ -28,7 +28,7 @@ public class AuctionLifecycleScheduler {
     private final WalletServiceClient walletServiceClient;
     private final OutboxEventService outboxEventService;
 
-    @Scheduled(fixedDelay = 30000) // Run every 30 seconds
+    @Scheduled(fixedDelayString = "${auction.lifecycle.fixed-delay-ms:30000}")
     @Transactional
     public void closeExpiredAuctions() {
         Instant now = Instant.now();
