@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -21,6 +22,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -146,5 +148,14 @@ class AuctionLifecycleSchedulerTest {
 
         assert draftAuction.getStatus() == AuctionStatus.ACTIVE;
         verify(auctionRepository).save(draftAuction);
+    }
+
+    @Test
+    void testCloseExpiredAuctions_UsesConfigurableFixedDelay() throws NoSuchMethodException {
+        Scheduled scheduled = AuctionLifecycleScheduler.class
+                .getDeclaredMethod("closeExpiredAuctions")
+                .getAnnotation(Scheduled.class);
+
+        assertEquals("${auction.lifecycle.fixed-delay-ms:30000}", scheduled.fixedDelayString());
     }
 }
