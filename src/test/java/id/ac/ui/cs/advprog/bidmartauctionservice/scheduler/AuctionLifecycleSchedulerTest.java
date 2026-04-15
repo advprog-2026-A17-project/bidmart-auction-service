@@ -7,6 +7,7 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.OutboxEventService;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AuctionSettlementPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +42,9 @@ class AuctionLifecycleSchedulerTest {
 
     @Mock
     private WalletServiceClient walletServiceClient;
+
+    @Mock
+    private AuctionSettlementPolicy settlementPolicy;
 
     @InjectMocks
     private AuctionLifecycleScheduler scheduler;
@@ -103,6 +107,7 @@ class AuctionLifecycleSchedulerTest {
                 eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(activeAuction));
+        when(settlementPolicy.determineFinalStatus(activeAuction)).thenReturn(AuctionStatus.WON);
 
         when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(activeAuction.getId()))
                 .thenReturn(java.util.Optional.of(Bid.builder()
@@ -126,6 +131,7 @@ class AuctionLifecycleSchedulerTest {
                 eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(extendedAuction));
+        when(settlementPolicy.determineFinalStatus(extendedAuction)).thenReturn(AuctionStatus.UNSOLD);
 
         scheduler.closeExpiredAuctions();
 
