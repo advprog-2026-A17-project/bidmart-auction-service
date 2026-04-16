@@ -7,6 +7,7 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.catalogue.ListingSummaryResponse;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
+import id.ac.ui.cs.advprog.bidmartauctionservice.exception.AuctionNotFoundException;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
@@ -120,10 +121,10 @@ class AuctionServiceTest {
     }
 
     @Test
-    void testPlaceBid_AuctionNotFound_ThrowsIllegalArgumentException() {
+    void testPlaceBid_AuctionNotFound_ThrowsAuctionNotFoundException() {
         when(auctionRepository.findByIdWithPessimisticWriteLock(auctionId)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () -> auctionService.placeBid(auctionId, validBidRequest));
+        assertThrows(AuctionNotFoundException.class, () -> auctionService.placeBid(auctionId, validBidRequest));
     }
 
     @Test
@@ -383,5 +384,13 @@ class AuctionServiceTest {
 
         assertThrows(IllegalArgumentException.class, () -> auctionService.createAuction(request));
         verify(auctionRepository, never()).save(any(Auction.class));
+    }
+
+    @Test
+    void testGetBidHistory_AuctionNotFound_ThrowsAuctionNotFoundException() {
+        when(auctionRepository.findById(auctionId)).thenReturn(Optional.empty());
+
+        assertThrows(AuctionNotFoundException.class, () -> auctionService.getBidHistoryByAuctionId(auctionId));
+        verify(bidRepository, never()).findByAuctionIdOrderByBidTimeDesc(any(UUID.class));
     }
 }
