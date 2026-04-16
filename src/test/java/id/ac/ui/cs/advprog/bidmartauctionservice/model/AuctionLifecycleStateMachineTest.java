@@ -38,4 +38,14 @@ class AuctionLifecycleStateMachineTest {
         assertTrue(AuctionLifecycleStateMachine.isTerminal(AuctionStatus.UNSOLD));
         assertFalse(AuctionLifecycleStateMachine.isTerminal(AuctionStatus.ACTIVE));
     }
+
+    @Test
+    void testBidPlacementPermissionByState() {
+        assertTrue(AuctionLifecycleStateMachine.allowsBidPlacement(AuctionStatus.ACTIVE));
+        assertTrue(AuctionLifecycleStateMachine.allowsBidPlacement(AuctionStatus.EXTENDED));
+        assertFalse(AuctionLifecycleStateMachine.allowsBidPlacement(AuctionStatus.DRAFT));
+        assertFalse(AuctionLifecycleStateMachine.allowsBidPlacement(AuctionStatus.CLOSED));
+        assertFalse(AuctionLifecycleStateMachine.allowsBidPlacement(AuctionStatus.WON));
+        assertFalse(AuctionLifecycleStateMachine.allowsBidPlacement(AuctionStatus.UNSOLD));
+    }
 }

@@ -11,6 +11,7 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.exception.AuctionNotFoundExcept
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
+import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycleStateMachine;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +49,7 @@ public class AuctionServiceImpl implements AuctionService {
                 .orElseThrow(() -> new AuctionNotFoundException("Auction not found with ID: " + auctionId));
         requireActiveListing(auction.getListingId());
 
-        if (auction.getStatus() != AuctionStatus.ACTIVE && auction.getStatus() != AuctionStatus.EXTENDED) {
+        if (!AuctionLifecycleStateMachine.allowsBidPlacement(auction.getStatus())) {
             throw new IllegalStateException("Bids can only be placed on ACTIVE or EXTENDED auctions.");
         }
         if (now.isAfter(auction.getEndTime())) {
