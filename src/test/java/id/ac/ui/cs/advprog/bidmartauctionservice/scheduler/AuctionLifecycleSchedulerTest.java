@@ -5,14 +5,16 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
-import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.OutboxEventService;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AuctionSettlementPolicy;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.WinningBidSelector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -21,6 +23,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,10 +38,13 @@ class AuctionLifecycleSchedulerTest {
     private OutboxEventService outboxEventService;
 
     @Mock
-    private BidRepository bidRepository;
+    private WalletServiceClient walletServiceClient;
 
     @Mock
-    private WalletServiceClient walletServiceClient;
+    private AuctionSettlementPolicy settlementPolicy;
+
+    @Mock
+    private WinningBidSelector winningBidSelector;
 
     @InjectMocks
     private AuctionLifecycleScheduler scheduler;
@@ -101,8 +107,9 @@ class AuctionLifecycleSchedulerTest {
                 eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(activeAuction));
+        when(settlementPolicy.determineFinalStatus(activeAuction)).thenReturn(AuctionStatus.WON);
 
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(activeAuction.getId()))
+        when(winningBidSelector.findWinningBid(activeAuction.getId()))
                 .thenReturn(java.util.Optional.of(Bid.builder()
                         .auction(activeAuction)
                         .bidderId(UUID.randomUUID())
@@ -124,6 +131,7 @@ class AuctionLifecycleSchedulerTest {
                 eq(Arrays.asList(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED)),
                 any(Instant.class)))
                 .thenReturn(Arrays.asList(extendedAuction));
+        when(settlementPolicy.determineFinalStatus(extendedAuction)).thenReturn(AuctionStatus.UNSOLD);
 
         scheduler.closeExpiredAuctions();
 
@@ -146,5 +154,14 @@ class AuctionLifecycleSchedulerTest {
 
         assert draftAuction.getStatus() == AuctionStatus.ACTIVE;
         verify(auctionRepository).save(draftAuction);
+    }
+
+    @Test
+    void testCloseExpiredAuctions_UsesConfigurableFixedDelay() throws NoSuchMethodException {
+        Scheduled scheduled = AuctionLifecycleScheduler.class
+                .getDeclaredMethod("closeExpiredAuctions")
+                .getAnnotation(Scheduled.class);
+
+        assertEquals("${auction.lifecycle.fixed-delay-ms:30000}", scheduled.fixedDelayString());
     }
 }

@@ -12,12 +12,14 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.WinningBidSelector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AntiSnipingPolicy;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -53,6 +55,12 @@ class AuctionServiceTest {
 
     @Mock
     private OutboxEventService outboxEventService;
+
+    @Mock
+    private AntiSnipingPolicy antiSnipingPolicy;
+
+    @Mock
+    private WinningBidSelector winningBidSelector;
 
     @InjectMocks
     private AuctionServiceImpl auctionService;
@@ -100,7 +108,7 @@ class AuctionServiceTest {
                 .build();
 
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
+        when(winningBidSelector.findWinningBid(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
 
         Bid result = auctionService.placeBid(auctionId, validBidRequest);
@@ -158,14 +166,12 @@ class AuctionServiceTest {
 
         Bid savedBid = Bid.builder().auction(activeAuction).build();
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
+        when(winningBidSelector.findWinningBid(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
 
         auctionService.placeBid(auctionId, validBidRequest);
 
-        assertEquals(AuctionStatus.EXTENDED, activeAuction.getStatus());
-        Duration remaining = Duration.between(Instant.now(), activeAuction.getEndTime());
-        assertTrue(remaining.toMinutes() >= 1);
+        verify(antiSnipingPolicy).applyForBid(any(Auction.class), any(Instant.class));
     }
 
     @Test
@@ -186,7 +192,7 @@ class AuctionServiceTest {
                 .build();
 
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
+        when(winningBidSelector.findWinningBid(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
 
         Bid result = auctionService.placeBid(auctionId, validBidRequest);
@@ -234,7 +240,7 @@ class AuctionServiceTest {
                 .build();
 
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId))
+        when(winningBidSelector.findWinningBid(auctionId))
                 .thenReturn(Optional.of(Bid.builder()
                         .bidderId(previousBidderId)
                         .bidAmount(previousBidAmount)

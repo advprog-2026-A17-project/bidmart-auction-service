@@ -10,6 +10,8 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AntiSnipingPolicy;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.WinningBidSelector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +46,12 @@ class AuctionServiceEventPublishingTest {
 
     @Mock
     private OutboxEventService outboxEventService;
+
+    @Mock
+    private AntiSnipingPolicy antiSnipingPolicy;
+
+    @Mock
+    private WinningBidSelector winningBidSelector;
 
     @InjectMocks
     private AuctionServiceImpl auctionService;
@@ -94,7 +102,7 @@ class AuctionServiceEventPublishingTest {
                 .build();
 
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId))
+        when(winningBidSelector.findWinningBid(auctionId))
                 .thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
 

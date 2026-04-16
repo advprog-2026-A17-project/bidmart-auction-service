@@ -7,8 +7,9 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycleStateMachine;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
-import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.OutboxEventService;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AuctionSettlementPolicy;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.WinningBidSelector;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -24,11 +25,12 @@ import java.util.Optional;
 public class AuctionLifecycleScheduler {
 
     private final AuctionRepository auctionRepository;
-    private final BidRepository bidRepository;
     private final WalletServiceClient walletServiceClient;
     private final OutboxEventService outboxEventService;
+    private final AuctionSettlementPolicy settlementPolicy;
+    private final WinningBidSelector winningBidSelector;
 
-    @Scheduled(fixedDelay = 30000) // Run every 30 seconds
+    @Scheduled(fixedDelayString = "${auction.lifecycle.fixed-delay-ms:30000}")
     @Transactional
     public void closeExpiredAuctions() {
         Instant now = Instant.now();
@@ -42,20 +44,14 @@ public class AuctionLifecycleScheduler {
             auction.setStatus(AuctionStatus.CLOSED);
             auctionRepository.save(auction);
 
-            AuctionStatus finalStatus;
-            if (auction.getCurrentHighestBid() != null &&
-                auction.getCurrentHighestBid().compareTo(auction.getReservePrice()) >= 0) {
-                finalStatus = AuctionStatus.WON;
-            } else {
-                finalStatus = AuctionStatus.UNSOLD;
-            }
+            AuctionStatus finalStatus = settlementPolicy.determineFinalStatus(auction);
 
             AuctionLifecycleStateMachine.enforceTransition(auction.getStatus(), finalStatus);
             auction.setStatus(finalStatus);
             auctionRepository.save(auction);
 
             if (finalStatus == AuctionStatus.WON) {
-                Optional<Bid> highestBid = bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auction.getId());
+                Optional<Bid> highestBid = winningBidSelector.findWinningBid(auction.getId());
                 highestBid.ifPresent(bid -> {
                     ConvertFundsRequest convertRequest = ConvertFundsRequest.builder()
                             .userId(bid.getBidderId())

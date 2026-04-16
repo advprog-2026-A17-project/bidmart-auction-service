@@ -10,7 +10,6 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
-import id.ac.ui.cs.advprog.bidmartauctionservice.model.lifecycle.AuctionLifecycleStateMachine;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +18,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AntiSnipingPolicy;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.WinningBidSelector;
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +35,8 @@ public class AuctionServiceImpl implements AuctionService {
     private final WalletServiceClient walletServiceClient;
     private final CatalogueServiceClient catalogueServiceClient;
     private final OutboxEventService outboxEventService;
+    private final AntiSnipingPolicy antiSnipingPolicy;
+    private final WinningBidSelector winningBidSelector;
 
     @Override
     @Transactional
@@ -64,7 +66,7 @@ public class AuctionServiceImpl implements AuctionService {
         }
 
         // Get previous highest bid if exists
-        Optional<Bid> previousHighestBid = bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId);
+        Optional<Bid> previousHighestBid = winningBidSelector.findWinningBid(auctionId);
 
         // Hold funds for new bidder from wallet service
         HoldFundsRequest holdRequest = HoldFundsRequest.builder()
@@ -84,15 +86,7 @@ public class AuctionServiceImpl implements AuctionService {
             walletServiceClient.releaseFunds(releaseRequest);
         }
 
-        // Anti-sniping: extend 2 minutes if bid is placed near end time
-        Duration remainingTime = Duration.between(now, auction.getEndTime());
-        if (remainingTime.toMinutes() < 2) {
-            auction.setEndTime(now.plus(Duration.ofMinutes(2)));
-            if (auction.getStatus() == AuctionStatus.ACTIVE) {
-                AuctionLifecycleStateMachine.enforceTransition(auction.getStatus(), AuctionStatus.EXTENDED);
-                auction.setStatus(AuctionStatus.EXTENDED);
-            }
-        }
+        antiSnipingPolicy.applyForBid(auction, now);
 
         auction.setCurrentHighestBid(requestDTO.getBidAmount());
         auctionRepository.save(auction);
