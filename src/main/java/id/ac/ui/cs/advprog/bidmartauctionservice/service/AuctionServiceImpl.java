@@ -19,6 +19,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AntiSnipingPolicy;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.WinningBidSelector;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -35,6 +36,7 @@ public class AuctionServiceImpl implements AuctionService {
     private final CatalogueServiceClient catalogueServiceClient;
     private final OutboxEventService outboxEventService;
     private final AntiSnipingPolicy antiSnipingPolicy;
+    private final WinningBidSelector winningBidSelector;
 
     @Override
     @Transactional
@@ -64,7 +66,7 @@ public class AuctionServiceImpl implements AuctionService {
         }
 
         // Get previous highest bid if exists
-        Optional<Bid> previousHighestBid = bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(auctionId);
+        Optional<Bid> previousHighestBid = winningBidSelector.findWinningBid(auctionId);
 
         // Hold funds for new bidder from wallet service
         HoldFundsRequest holdRequest = HoldFundsRequest.builder()
