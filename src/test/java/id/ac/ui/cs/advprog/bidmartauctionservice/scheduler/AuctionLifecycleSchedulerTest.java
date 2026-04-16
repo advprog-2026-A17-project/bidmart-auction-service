@@ -109,7 +109,7 @@ class AuctionLifecycleSchedulerTest {
                 .thenReturn(Arrays.asList(activeAuction));
         when(settlementPolicy.determineFinalStatus(activeAuction)).thenReturn(AuctionStatus.WON);
 
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(activeAuction.getId()))
+        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(activeAuction.getId()))
                 .thenReturn(java.util.Optional.of(Bid.builder()
                         .auction(activeAuction)
                         .bidderId(UUID.randomUUID())

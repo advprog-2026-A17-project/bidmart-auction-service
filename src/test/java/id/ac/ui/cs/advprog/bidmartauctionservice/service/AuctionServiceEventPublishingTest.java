@@ -98,7 +98,7 @@ class AuctionServiceEventPublishingTest {
                 .build();
 
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId))
+        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(auctionId))
                 .thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
 

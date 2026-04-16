@@ -51,7 +51,7 @@ public class AuctionLifecycleScheduler {
             auctionRepository.save(auction);
 
             if (finalStatus == AuctionStatus.WON) {
-                Optional<Bid> highestBid = bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auction.getId());
+                Optional<Bid> highestBid = bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(auction.getId());
                 highestBid.ifPresent(bid -> {
                     ConvertFundsRequest convertRequest = ConvertFundsRequest.builder()
                             .userId(bid.getBidderId())

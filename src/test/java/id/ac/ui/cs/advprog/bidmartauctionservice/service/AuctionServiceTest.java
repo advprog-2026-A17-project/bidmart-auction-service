@@ -104,7 +104,7 @@ class AuctionServiceTest {
                 .build();
 
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
+        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
 
         Bid result = auctionService.placeBid(auctionId, validBidRequest);
@@ -162,7 +162,7 @@ class AuctionServiceTest {
 
         Bid savedBid = Bid.builder().auction(activeAuction).build();
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
+        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
 
         auctionService.placeBid(auctionId, validBidRequest);
@@ -188,7 +188,7 @@ class AuctionServiceTest {
                 .build();
 
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId)).thenReturn(Optional.empty());
+        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(auctionId)).thenReturn(Optional.empty());
         doNothing().when(walletServiceClient).holdFunds(any(HoldFundsRequest.class));
 
         Bid result = auctionService.placeBid(auctionId, validBidRequest);
@@ -236,7 +236,7 @@ class AuctionServiceTest {
                 .build();
 
         when(bidRepository.save(any(Bid.class))).thenReturn(savedBid);
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId))
+        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(auctionId))
                 .thenReturn(Optional.of(Bid.builder()
                         .bidderId(previousBidderId)
                         .bidAmount(previousBidAmount)

@@ -64,7 +64,7 @@ public class AuctionServiceImpl implements AuctionService {
         }
 
         // Get previous highest bid if exists
-        Optional<Bid> previousHighestBid = bidRepository.findFirstByAuctionIdOrderByBidAmountDesc(auctionId);
+        Optional<Bid> previousHighestBid = bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(auctionId);
 
         // Hold funds for new bidder from wallet service
         HoldFundsRequest holdRequest = HoldFundsRequest.builder()
