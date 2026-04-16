@@ -7,6 +7,7 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.dto.CreateAuctionRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.catalogue.ListingSummaryResponse;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.HoldFundsRequest;
 import id.ac.ui.cs.advprog.bidmartauctionservice.dto.wallet.ReleaseFundsRequest;
+import id.ac.ui.cs.advprog.bidmartauctionservice.exception.AuctionNotFoundException;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
@@ -44,7 +45,7 @@ public class AuctionServiceImpl implements AuctionService {
         Instant now = Instant.now();
 
         Auction auction = auctionRepository.findByIdWithPessimisticWriteLock(auctionId)
-                .orElseThrow(() -> new IllegalArgumentException("Auction not found with ID: " + auctionId));
+                .orElseThrow(() -> new AuctionNotFoundException("Auction not found with ID: " + auctionId));
         requireActiveListing(auction.getListingId());
 
         if (auction.getStatus() != AuctionStatus.ACTIVE && auction.getStatus() != AuctionStatus.EXTENDED) {
@@ -136,6 +137,9 @@ public class AuctionServiceImpl implements AuctionService {
     @Override
     @Transactional(readOnly = true)
     public List<Bid> getBidHistoryByAuctionId(UUID auctionId) {
+        if (auctionRepository.findById(auctionId).isEmpty()) {
+            throw new AuctionNotFoundException("Auction not found with ID: " + auctionId);
+        }
         return bidRepository.findByAuctionIdOrderByBidTimeDesc(auctionId);
     }
 
