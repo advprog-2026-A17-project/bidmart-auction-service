@@ -5,9 +5,9 @@ import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Auction;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.entity.Bid;
 import id.ac.ui.cs.advprog.bidmartauctionservice.model.enums.AuctionStatus;
 import id.ac.ui.cs.advprog.bidmartauctionservice.repository.AuctionRepository;
-import id.ac.ui.cs.advprog.bidmartauctionservice.repository.BidRepository;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.OutboxEventService;
 import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.AuctionSettlementPolicy;
+import id.ac.ui.cs.advprog.bidmartauctionservice.service.policy.WinningBidSelector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,13 +38,13 @@ class AuctionLifecycleSchedulerTest {
     private OutboxEventService outboxEventService;
 
     @Mock
-    private BidRepository bidRepository;
-
-    @Mock
     private WalletServiceClient walletServiceClient;
 
     @Mock
     private AuctionSettlementPolicy settlementPolicy;
+
+    @Mock
+    private WinningBidSelector winningBidSelector;
 
     @InjectMocks
     private AuctionLifecycleScheduler scheduler;
@@ -109,7 +109,7 @@ class AuctionLifecycleSchedulerTest {
                 .thenReturn(Arrays.asList(activeAuction));
         when(settlementPolicy.determineFinalStatus(activeAuction)).thenReturn(AuctionStatus.WON);
 
-        when(bidRepository.findFirstByAuctionIdOrderByBidAmountDescBidTimeAsc(activeAuction.getId()))
+        when(winningBidSelector.findWinningBid(activeAuction.getId()))
                 .thenReturn(java.util.Optional.of(Bid.builder()
                         .auction(activeAuction)
                         .bidderId(UUID.randomUUID())
