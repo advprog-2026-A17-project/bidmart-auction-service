@@ -35,4 +35,8 @@ public final class AuctionLifecycleStateMachine {
     public static boolean isTerminal(AuctionStatus status) {
         return status == AuctionStatus.WON || status == AuctionStatus.UNSOLD;
     }
+
+    public static boolean allowsBidPlacement(AuctionStatus status) {
+        return status == AuctionStatus.ACTIVE || status == AuctionStatus.EXTENDED;
+    }
 }
