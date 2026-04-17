@@ -47,4 +47,4 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           chmod +x gradlew
-          ./gradlew sonar
+          ./gradlew test jacocoTestReport sonar
