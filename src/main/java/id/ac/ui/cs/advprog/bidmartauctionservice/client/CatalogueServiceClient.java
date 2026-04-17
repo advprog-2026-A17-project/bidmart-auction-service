@@ -19,9 +19,13 @@ public class CatalogueServiceClient {
     private String catalogueServiceUrl;
 
     public ListingSummaryResponse getListing(UUID listingId) {
-        String url = catalogueServiceUrl + "/api/v1/listings/" + listingId;
+        String url = catalogueServiceUrl + "/api/v1/catalogue/listings/{listingId}/summary";
         try {
-            ListingSummaryResponse response = restTemplate.getForObject(url, ListingSummaryResponse.class);
+            ListingSummaryResponse response = restTemplate.getForObject(
+                    url,
+                    ListingSummaryResponse.class,
+                    listingId
+            );
             if (response == null) {
                 throw new IllegalArgumentException("Listing not found: " + listingId);
             }
